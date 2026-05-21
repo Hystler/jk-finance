@@ -14,3 +14,4 @@ prisma/dev.db
 public/scrape_artifacts/*
 !public/scrape_artifacts/.gitkeep
 !public/scrape_artifacts/scraped_menu.json
+.env*
