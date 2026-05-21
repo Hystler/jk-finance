@@ -1,0 +1,218 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Product {
+  id                String             @id @default(cuid())
+  category          String
+  name              String
+  description       String?
+  salePrice         Float
+  imageUrl          String?
+  productUrl        String?            @unique
+  isActive          Boolean            @default(true)
+  taxRate           Float?
+  deliveryAvailable Boolean            @default(true)
+  source            String             @default("MANUAL")
+  sourceNote        String?
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  recipes           RecipeItem[]
+  packagingLinks    ProductPackaging[]
+  assumptions       Assumption[]
+
+  @@unique([category, name])
+}
+
+model Ingredient {
+  id                 String       @id @default(cuid())
+  name               String       @unique
+  supplier           String?
+  purchasePrice      Float
+  purchaseUnit       String
+  edibleYieldPercent Float?
+  storageLossPercent Float?
+  category           String?
+  comment            String?
+  source             String       @default("MANUAL")
+  lastUpdatedAt      DateTime     @updatedAt
+  recipes            RecipeItem[]
+}
+
+model RecipeItem {
+  id                  String      @id @default(cuid())
+  productId           String
+  ingredientId        String?
+  ingredientName      String
+  quantity            Float?
+  unit                String?
+  grossWeightGrams    Float?
+  netWeightGrams      Float?
+  yieldLossPercent    Float?
+  unitPurchasePrice   Float?
+  unitMeasure         String?
+  costPerUnit         Float?
+  totalIngredientCost Float?
+  comment             String?
+  source              String      @default("MANUAL")
+  product             Product     @relation(fields: [productId], references: [id], onDelete: Cascade)
+  ingredient          Ingredient? @relation(fields: [ingredientId], references: [id])
+}
+
+model Packaging {
+  id              String             @id @default(cuid())
+  name            String
+  costPerUnit     Float
+  usedForCategory String?
+  supplier        String?
+  comment         String?
+  source          String             @default("MANUAL")
+  productLinks    ProductPackaging[]
+}
+
+model ProductPackaging {
+  id          String    @id @default(cuid())
+  productId   String
+  packagingId String
+  units       Float     @default(1)
+  comment     String?
+  product     Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+  packaging   Packaging @relation(fields: [packagingId], references: [id], onDelete: Cascade)
+}
+
+model StoreInput {
+  id                            String   @id @default(cuid())
+  location                      String?
+  formatType                    String   @default("delivery")
+  areaM2                        Float?
+  seatsCount                    Int?
+  workingDaysPerMonth           Int      @default(0)
+  workingHoursPerDay            Float    @default(0)
+  avgOrdersPerDay               Float    @default(0)
+  avgItemsPerOrder              Float    @default(0)
+  avgCheck                      Float    @default(0)
+  deliveryShare                 Float    @default(0)
+  aggregatorShare               Float    @default(0)
+  ownDeliveryShare              Float    @default(0)
+  pickupShare                   Float    @default(0)
+  acquiringRate                 Float    @default(0)
+  aggregatorCommissionRate      Float    @default(0)
+  deliveryLogisticsCostPerOrder Float    @default(0)
+  marketingCostPerItem          Float    @default(0)
+  ownerWithdrawalsMonthly       Float    @default(0)
+  loanPaymentsMonthly           Float    @default(0)
+  workingCapitalChangeMonthly   Float    @default(0)
+  source                        String   @default("ASSUMPTION")
+  updatedAt                     DateTime @updatedAt
+}
+
+model OpexItem {
+  id        String   @id @default(cuid())
+  category  String
+  amount    Float
+  behavior  String   @default("FIXED")
+  driver    String   @default("FIXED")
+  comment   String?
+  source    String   @default("ASSUMPTION")
+  updatedAt DateTime @updatedAt
+}
+
+model CapexItem {
+  id                String   @id @default(cuid())
+  category          String
+  amount            Float
+  usefulLifeMonths  Int?
+  supplierComment   String?
+  required          Boolean  @default(true)
+  paidBeforeOpening Boolean  @default(true)
+  source            String   @default("ASSUMPTION")
+  updatedAt         DateTime @updatedAt
+}
+
+model TaxSettings {
+  id             String   @id @default(cuid())
+  taxSystem      String?
+  revenueTaxRate Float?
+  profitTaxRate  Float?
+  payrollTaxRate Float?
+  vatRate        Float?
+  otherTaxes     Float    @default(0)
+  source         String   @default("ASSUMPTION")
+  updatedAt      DateTime @updatedAt
+}
+
+model FranchiseSettings {
+  id                                   String   @id @default(cuid())
+  lumpSumFee                           Float    @default(0)
+  royaltyType                          String   @default("percent_of_revenue")
+  royaltyRate                          Float    @default(0)
+  fixedMonthlyRoyalty                  Float    @default(0)
+  marketingFeeRate                     Float    @default(0)
+  supplyChainMarkup                    Float    @default(0)
+  trainingFee                          Float    @default(0)
+  openingSupportFee                    Float    @default(0)
+  monthlySupportCostPerFranchisee      Float    @default(0)
+  franchisorFixedTeamCosts             Float    @default(0)
+  openingInventory                     Float    @default(0)
+  launchMarketing                      Float    @default(0)
+  rentDeposit                          Float    @default(0)
+  contingencyAmount                    Float    @default(0)
+  contingencyPercent                   Float    @default(0)
+  loanAmount                           Float    @default(0)
+  loanPaymentsMonthly                  Float    @default(0)
+  ownerWithdrawalsMonthly              Float    @default(0)
+  numberOfFranchisees                  Int      @default(1)
+  monthlyFixedFees                     Float    @default(0)
+  franchiseWorkingDaysPerMonth         Int      @default(0)
+  franchiseAvgOrdersPerDay             Float    @default(0)
+  franchiseAvgItemsPerOrder            Float    @default(0)
+  franchiseAvgCheck                    Float    @default(0)
+  franchiseDeliverySharePercent        Float    @default(0)
+  franchiseAggregatorSharePercent      Float    @default(0)
+  franchiseAcquiringRatePercent        Float    @default(0)
+  franchiseAggregatorCommissionPercent Float    @default(0)
+  franchiseLogisticsPerOrder           Float    @default(0)
+  franchiseMarketingPerSku             Float    @default(0)
+  franchiseRevenueTaxRatePercent       Float    @default(0)
+  franchiseProfitTaxRatePercent        Float    @default(0)
+  franchiseVatRatePercent              Float    @default(0)
+  franchiseOtherTaxesPerMonth          Float    @default(0)
+  franchiseLoanPaymentsPerMonth        Float    @default(0)
+  franchiseOwnerWithdrawalsPerMonth    Float    @default(0)
+  franchiseRent                        Float    @default(0)
+  franchisePayroll                     Float    @default(0)
+  franchiseUtilities                   Float    @default(0)
+  franchiseSoftware                    Float    @default(0)
+  franchiseAccounting                  Float    @default(0)
+  franchiseRepairs                     Float    @default(0)
+  franchiseOtherFixedOpex              Float    @default(0)
+  forecastMonths                       Int      @default(24)
+  revenueTrendType                     String   @default("flat")
+  monthlyGrowthRatePercent             Float    @default(0)
+  monthlyDeclineRatePercent            Float    @default(0)
+  rampUpMonths                         Int      @default(6)
+  rampUpStartPercent                   Float    @default(60)
+  seasonalityEnabled                   Boolean  @default(false)
+  franchiseInputsCopiedFromStore       Boolean  @default(false)
+  source                               String   @default("ASSUMPTION")
+  updatedAt                            DateTime @updatedAt
+}
+
+model Assumption {
+  id         String   @id @default(cuid())
+  entityType String
+  entityId   String?
+  field      String
+  value      String
+  unit       String?
+  source     String   @default("ASSUMPTION")
+  note       String?
+  productId  String?
+  product    Product? @relation(fields: [productId], references: [id], onDelete: Cascade)
+  updatedAt  DateTime @updatedAt
+}

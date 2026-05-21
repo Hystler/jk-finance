@@ -1,0 +1,2 @@
+id,category,name,description,sale_price,image_url,product_url,is_active,tax_rate,delivery_available,source,source_note
+,Бургеры,Бургер Рокки,"пшеничная булочка, чесночный и сырный соус, говяжья котлета, чеддер, сырные палочки моцарелла, салат, помидор, красный лук",0,,,true,,true,USER_INPUT,"Цена 0 означает: заполнить пользователем или импортировать"

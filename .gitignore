@@ -1,0 +1,16 @@
+.DS_Store
+.vercel
+
+.next
+node_modules
+.npm-cache
+.env
+.env.local
+.env.*.local
+prisma/dev.db
+*.db
+*.sqlite
+*.sqlite3
+public/scrape_artifacts/*
+!public/scrape_artifacts/.gitkeep
+!public/scrape_artifacts/scraped_menu.json

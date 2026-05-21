@@ -1,0 +1,2 @@
+name,supplier,purchase_price,purchase_unit,edible_yield_percent,storage_loss_percent,category,source
+Говяжья котлета,,0,kg,,,Мясо,ASSUMPTION

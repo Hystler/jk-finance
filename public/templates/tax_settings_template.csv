@@ -1,0 +1,2 @@
+tax_system,revenue_tax_rate,profit_tax_rate,payroll_tax_rate,vat_rate,other_taxes,source,note
+editable assumption,,,,,0,ASSUMPTION,"Налоги являются расчетными assumptions, не юридическим выводом"

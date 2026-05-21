@@ -1,0 +1,2 @@
+product_id,product_name,ingredient_name,gross_weight_grams,net_weight_grams,yield_loss_percent,unit_purchase_price,unit_measure,cost_per_unit,total_ingredient_cost,source
+,Бургер Рокки,Говяжья котлета,,,,,kg,,,USER_INPUT

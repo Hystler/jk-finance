@@ -1,0 +1,170 @@
+import type { NextApiRequest, NextApiResponse } from "next";
+import { createHash } from "node:crypto";
+import { prisma } from "@/lib/db";
+
+const text = (value: unknown) => String(value ?? "").trim();
+const num = (value: unknown) => {
+  const n = Number(String(value ?? "").replace(",", "."));
+  return Number.isFinite(n) ? n : 0;
+};
+const nullableNum = (value: unknown) => {
+  const raw = String(value ?? "").trim();
+  if (!raw) return null;
+  const n = Number(raw.replace(",", "."));
+  return Number.isFinite(n) ? n : null;
+};
+const bool = (value: unknown, fallback = true) => {
+  const raw = String(value ?? "").toLowerCase().trim();
+  if (!raw) return fallback;
+  return ["true", "yes", "1", "да"].includes(raw);
+};
+const stableId = (prefix: string, value: string) => `${prefix}-${createHash("sha1").update(value).digest("hex").slice(0, 16)}`;
+
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+  if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
+  const kind = String(req.query.kind);
+  const rows = Array.isArray(req.body.rows) ? req.body.rows : [];
+
+  try {
+    if (kind === "menu") {
+      let count = 0;
+      for (const row of rows) {
+        const name = text(row.name ?? row.Name ?? row["название"] ?? row["Название"]);
+        if (!name) continue;
+        const category = text(row.category ?? row["категория"]) || "Uncategorized";
+        const productUrl = text(row.product_url ?? row.productUrl) || null;
+        const id = text(row.id) || stableId("menu", productUrl ?? `${category}:${name}`);
+        const data = {
+          category,
+          name,
+          description: text(row.description ?? row["описание"]),
+          salePrice: num(row.sale_price ?? row.salePrice ?? row.price ?? row["цена"]),
+          imageUrl: text(row.image_url ?? row.imageUrl),
+          productUrl,
+          source: text(row.source) === "IMPORTED_MENU" ? "IMPORTED_MENU" : "MANUAL"
+        };
+        await prisma.product.upsert({
+          where: productUrl ? { productUrl } : { category_name: { category, name } },
+          update: data,
+          create: { id, ...data }
+        });
+        count += 1;
+      }
+      return res.json({ count });
+    }
+
+    if (kind === "ingredients") {
+      let count = 0;
+      for (const row of rows) {
+        const name = text(row.name ?? row.ingredient_name ?? row["ингредиент"]);
+        if (!name) continue;
+        await prisma.ingredient.upsert({
+          where: { name },
+          update: {
+            supplier: text(row.supplier),
+            purchasePrice: num(row.purchase_price ?? row.purchasePrice),
+            purchaseUnit: text(row.purchase_unit ?? row.purchaseUnit) || "kg",
+            edibleYieldPercent: nullableNum(row.edible_yield_percent ?? row.edibleYieldPercent),
+            storageLossPercent: nullableNum(row.storage_loss_percent ?? row.storageLossPercent),
+            category: text(row.category),
+            comment: text(row.comment),
+            source: "MANUAL"
+          },
+          create: {
+            name,
+            supplier: text(row.supplier),
+            purchasePrice: num(row.purchase_price ?? row.purchasePrice),
+            purchaseUnit: text(row.purchase_unit ?? row.purchaseUnit) || "kg",
+            edibleYieldPercent: nullableNum(row.edible_yield_percent ?? row.edibleYieldPercent),
+            storageLossPercent: nullableNum(row.storage_loss_percent ?? row.storageLossPercent),
+            category: text(row.category),
+            comment: text(row.comment),
+            source: "MANUAL"
+          }
+        });
+        count += 1;
+      }
+      return res.json({ count });
+    }
+
+    if (kind === "recipes") {
+      let count = 0;
+      for (const row of rows) {
+        const productId = text(row.product_id ?? row.productId);
+        const productName = text(row.product_name ?? row.productName);
+        const product = productId ? await prisma.product.findUnique({ where: { id: productId } }) : await prisma.product.findFirst({ where: { name: productName } });
+        if (!product) continue;
+        const ingredientName = text(row.ingredient_name ?? row.ingredientName);
+        await prisma.recipeItem.create({
+          data: {
+            productId: product.id,
+            ingredientName,
+            quantity: nullableNum(row.quantity),
+            unit: text(row.unit),
+            grossWeightGrams: nullableNum(row.gross_weight_grams ?? row.grossWeightGrams),
+            netWeightGrams: nullableNum(row.net_weight_grams ?? row.netWeightGrams),
+            yieldLossPercent: nullableNum(row.yield_loss_percent ?? row.yieldLossPercent),
+            unitPurchasePrice: nullableNum(row.unit_purchase_price ?? row.unitPurchasePrice),
+            unitMeasure: text(row.unit_measure ?? row.unitMeasure),
+            costPerUnit: nullableNum(row.cost_per_unit ?? row.costPerUnit),
+            totalIngredientCost: nullableNum(row.total_ingredient_cost ?? row.totalIngredientCost),
+            comment: text(row.comment),
+            source: "MANUAL"
+          }
+        });
+        count += 1;
+      }
+      return res.json({ count });
+    }
+
+    if (kind === "capex") {
+      const created = await prisma.capexItem.createMany({
+        data: rows.map((row: any) => ({
+          category: text(row.category ?? row["статья"]),
+          amount: num(row.amount ?? row["сумма"]),
+          usefulLifeMonths: nullableNum(row.useful_life_months ?? row.usefulLifeMonths),
+          supplierComment: text(row.supplier_comment ?? row.supplierComment ?? row.comment),
+          required: bool(row.required, true),
+          paidBeforeOpening: bool(row.paid_before_opening ?? row.paidBeforeOpening, true),
+          source: "ASSUMPTION" as const
+        })).filter((row: any) => row.category)
+      });
+      return res.json({ count: created.count });
+    }
+
+    if (kind === "opex") {
+      const created = await prisma.opexItem.createMany({
+        data: rows.map((row: any) => ({
+          category: text(row.category ?? row["статья"]),
+          amount: num(row.amount ?? row["сумма"]),
+          behavior: text(row.behavior).toUpperCase() === "VARIABLE" ? "VARIABLE" as const : "FIXED" as const,
+          driver: ["LINKED_TO_REVENUE", "LINKED_TO_ORDERS", "LINKED_TO_ITEMS"].includes(text(row.driver).toUpperCase()) ? text(row.driver).toUpperCase() as any : "FIXED" as const,
+          comment: text(row.comment),
+          source: "ASSUMPTION" as const
+        })).filter((row: any) => row.category)
+      });
+      return res.json({ count: created.count });
+    }
+
+    if (kind === "tax") {
+      const row = rows[0] ?? {};
+      const existing = await prisma.taxSettings.findFirst();
+      const data = {
+        taxSystem: text(row.tax_system ?? row.taxSystem),
+        revenueTaxRate: nullableNum(row.revenue_tax_rate ?? row.revenueTaxRate),
+        profitTaxRate: nullableNum(row.profit_tax_rate ?? row.profitTaxRate),
+        payrollTaxRate: nullableNum(row.payroll_tax_rate ?? row.payrollTaxRate),
+        vatRate: nullableNum(row.vat_rate ?? row.vatRate),
+        otherTaxes: num(row.other_taxes ?? row.otherTaxes),
+        source: "ASSUMPTION" as const
+      };
+      if (existing) await prisma.taxSettings.update({ where: { id: existing.id }, data });
+      else await prisma.taxSettings.create({ data });
+      return res.json({ count: 1 });
+    }
+
+    return res.status(400).json({ error: "Unknown import kind" });
+  } catch (error) {
+    return res.status(500).json({ error: error instanceof Error ? error.message : "Import failed" });
+  }
+}
