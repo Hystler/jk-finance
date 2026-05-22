@@ -446,8 +446,13 @@ function buildDetailedCase(
   const monthlyForecast = rows36.filter((row) => row.month > 0 && row.month <= adjustedFranchise.forecastMonths);
   const month1 = rows36.find((row) => row.month === 1) ?? emptyMonth(1);
   const month12 = rows36.find((row) => row.month === 12) ?? monthlyForecast[monthlyForecast.length - 1] ?? month1;
-  const paybackMonth24 = rows24.find((row) => row.month > 0 && row.cumulativeCashflow >= 0)?.month ?? null;
-  const paybackMonth = rows36.find((row) => row.month > 0 && row.cumulativeCashflow >= 0)?.month ?? null;
+  const paybackReady = canCalculatePayback(products, adjustedFranchise, openingInvestmentResult.openingInvestment, fixedBreakdown, rows36);
+  const paybackMonth24 = paybackReady
+    ? rows24.find((row) => row.month > 0 && row.cumulativeCashflow >= 0)?.month ?? null
+    : null;
+  const paybackMonth = paybackReady
+    ? rows36.find((row) => row.month > 0 && row.cumulativeCashflow >= 0)?.month ?? null
+    : null;
   const yearOneNetCashflow = rows36
     .filter((row) => row.month >= 1 && row.month <= 12)
     .reduce((sum, row) => sum + row.netOperatingCashflow, 0);
@@ -687,7 +692,7 @@ function buildFranchiseChecks(
   if (franchise.franchiseInputsCopiedFromStore) checks.push({ severity: "warning", code: "COPIED_STORE_VALUES", message: "Franchise model uses copied Store Model values: проверьте, подходят ли эти данные для новой точки" });
   if (f.fixedCosts.total <= 0) checks.push({ severity: "warning", code: "FRANCHISE_OPEX_MISSING", message: "Missing franchise OPEX" });
   if (!capex.length || f.capexInvestment <= 0) checks.push({ severity: "warning", code: "FRANCHISE_CAPEX_MISSING", message: "Missing franchise CAPEX / opening investment" });
-  if (products.length && f.foodCost === 0) checks.push({ severity: "warning", code: "SKU_COST_MISSING", message: "SKU себестоимость отсутствует" });
+  if (!hasSkuCostData(products)) checks.push({ severity: "warning", code: "SKU_COST_MISSING", message: "SKU себестоимость отсутствует" });
   return checks;
 }
 
@@ -703,7 +708,7 @@ function buildBreakers(base: ReturnType<typeof buildDetailedCase>, products: Pro
   if (payrollRatio > 0.25) reasons.push("высокий ФОТ");
   if (feeRatio > 0.15) reasons.push("высокая комиссия франшизы");
   if (f.revenue <= 0 || f.ebitdaAfterFranchiseFees < 0) reasons.push("низкая выручка");
-  if (products.length && f.foodCost === 0) reasons.push("не заполнена себестоимость SKU");
+  if (!hasSkuCostData(products)) reasons.push("не заполнена себестоимость SKU");
   if (foodCostRatio > 0.35) reasons.push("высокий food cost");
   if (f.paybackMonth == null || f.paybackMonth > 24) reasons.push("долгий payback");
   if (f.fixedCosts.total <= 0) reasons.push("не заполнен Franchise OPEX");
@@ -721,8 +726,34 @@ function buildMissingDataWarnings(
   }
   if (!capex.length) warnings.push("CAPEX не заполнен или равен 0.");
   if (fixedCostBreakdown(franchise).total <= 0) warnings.push("Franchise OPEX не заполнен.");
-  if (products.length && averageProductCosts(products).foodCostPerItem <= 0) warnings.push("SKU себестоимость отсутствует.");
+  if (!hasSkuCostData(products)) warnings.push("SKU себестоимость отсутствует.");
   return warnings;
+}
+
+function hasRequiredFranchiseStoreInputs(franchise: FranchiseSettingsInput) {
+  return franchise.franchiseWorkingDaysPerMonth > 0 &&
+    franchise.franchiseAvgOrdersPerDay > 0 &&
+    franchise.franchiseAvgItemsPerOrder > 0 &&
+    franchise.franchiseAvgCheck > 0;
+}
+
+function hasSkuCostData(products: ProductInput[]) {
+  const costs = averageProductCosts(products);
+  return costs.foodCostPerItem > 0 && costs.packagingCostPerItem > 0;
+}
+
+function canCalculatePayback(
+  products: ProductInput[],
+  franchise: FranchiseSettingsInput,
+  openingInvestment: number,
+  fixedCosts: ReturnType<typeof fixedCostBreakdown>,
+  rows: FranchiseCashflowRow[]
+) {
+  if (openingInvestment <= 0) return false;
+  if (!hasRequiredFranchiseStoreInputs(franchise)) return false;
+  if (fixedCosts.total <= 0) return false;
+  if (!hasSkuCostData(products)) return false;
+  return rows.some((row) => row.month > 0 && row.revenue > 0 && row.netOperatingCashflow > 0);
 }
 
 function buildFranchisorModel(franchise: FranchiseSettingsInput, royalty: number, marketingFee: number, supplyChainMarkupRevenue: number) {
@@ -935,9 +966,11 @@ function emptyMonth(month: number): FranchiseCashflowRow {
 
 function averageProductCosts(products: ProductInput[]) {
   if (!products.length) return { foodCostPerItem: 0, packagingCostPerItem: 0 };
+  const foodCosts = products.map((product) => calculateIngredientCost(product)).filter((cost) => cost > 0);
+  const packagingCosts = products.map((product) => calculatePackagingCost(product)).filter((cost) => cost > 0);
   return {
-    foodCostPerItem: products.reduce((sum, product) => sum + calculateIngredientCost(product), 0) / products.length,
-    packagingCostPerItem: products.reduce((sum, product) => sum + calculatePackagingCost(product), 0) / products.length
+    foodCostPerItem: foodCosts.length ? foodCosts.reduce((sum, cost) => sum + cost, 0) / foodCosts.length : 0,
+    packagingCostPerItem: packagingCosts.length ? packagingCosts.reduce((sum, cost) => sum + cost, 0) / packagingCosts.length : 0
   };
 }
 

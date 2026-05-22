@@ -1,4 +1,4 @@
-import { AlertTriangle, Copy, Download, Save } from "lucide-react";
+import { AlertTriangle, Copy, Download, Save, Sparkles } from "lucide-react";
 import {
   Bar,
   BarChart,
@@ -45,6 +45,10 @@ export default function FranchisePage({ franchise, franchiseModel }: any) {
   const statusLabel = franchiseModel.status === "good" ? "good" : franchiseModel.status === "critical" ? "critical" : "warning";
   const hasRevenueForecast = forecast.some((row: any) => row.revenue > 0);
   const hasPaybackData = cashflow24.some((row: any) => row.openingInvestment > 0 || row.cumulativeCashflow !== 0);
+  const hasMissingModelInputs = franchiseModel.missingDataWarnings.length > 0;
+  const paybackValue = franchisee.paybackMonth == null
+    ? hasMissingModelInputs ? "Недостаточно данных" : "not reached"
+    : `${franchisee.paybackMonth} мес.`;
 
   return (
     <Shell>
@@ -59,6 +63,9 @@ export default function FranchisePage({ franchise, franchiseModel }: any) {
           </div>
         </div>
         <div className="actions">
+          <form method="post" action="/api/franchise">
+            <button type="submit" name="action" value="demo"><Sparkles size={16} /> Demo / Base scenario</button>
+          </form>
           <a className="button primary" href="/api/export/full"><Download size={16} /> XLSX</a>
         </div>
       </div>
@@ -70,9 +77,14 @@ export default function FranchisePage({ franchise, franchiseModel }: any) {
         <Metric title="EBITDA after fees M12" value={rub(franchisee.ebitdaAfterFeesMonth12)} tone={franchisee.ebitdaAfterFeesMonth12 < 0 ? "negative" : "positive"} />
         <Metric title="EBITDA margin M12" value={percent(franchisee.ebitdaMarginAfterFeesMonth12)} tone={franchisee.ebitdaMarginAfterFeesMonth12 < 0.1 ? "negative" : "positive"} />
         <Metric title="Net cashflow M12" value={rub(franchisee.netCashflowMonth12)} tone={franchisee.netCashflowMonth12 < 0 ? "negative" : "positive"} />
-        <Metric title="Payback" value={franchisee.paybackMonth == null ? "not reached" : `${franchisee.paybackMonth} мес.`} />
+        <Metric title="Payback" value={paybackValue} />
         <Metric title="Annual ROI" value={franchisee.annualROI == null ? "n/a" : percent(franchisee.annualROI)} tone={franchisee.annualROI != null && franchisee.annualROI < 0.3 ? "negative" : "positive"} />
       </div>
+      {hasMissingModelInputs && (
+        <div className="franchiseEmptyBanner">
+          Заполните Franchisee Store Inputs, OPEX, CAPEX и SKU себестоимость для расчета.
+        </div>
+      )}
 
       <nav className="segmented wrap sectionNav" aria-label="Franchise sections">
         <a href="#inputs">Inputs</a>
@@ -170,6 +182,7 @@ export default function FranchisePage({ franchise, franchiseModel }: any) {
           <div className="rowActions wideActions">
             <button className="primary" type="submit" name="action" value="save"><Save size={16} /> Сохранить</button>
             <button type="submit" name="action" value="copy_store"><Copy size={16} /> Скопировать inputs из Store Model</button>
+            <button type="submit" name="action" value="demo"><Sparkles size={16} /> Demo / Base scenario</button>
           </div>
         </form>
       </section>

@@ -66,6 +66,10 @@ type FranchiseData = {
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST") return res.status(405).end();
   const existing = await prisma.franchiseSettings.findFirst();
+  if (req.body.action === "demo") {
+    await applyDemoScenario(existing?.id);
+    return res.redirect(303, "/franchise");
+  }
   const copyFromStore = req.body.action === "copy_store";
   const [store, tax, opex] = copyFromStore
     ? await Promise.all([
@@ -133,6 +137,223 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   else await prisma.franchiseSettings.create({ data });
   res.redirect(303, "/franchise");
 }
+
+async function applyDemoScenario(existingFranchiseId?: string) {
+  const franchiseId = existingFranchiseId ?? "default-franchise";
+  const demoProductId = "demo-fast-food-combo";
+  const demoIngredientId = "demo-combo-food-cost";
+  const demoPackagingId = "demo-combo-packaging";
+
+  await prisma.$transaction([
+    prisma.product.upsert({
+      where: { id: demoProductId },
+      create: {
+        id: demoProductId,
+        category: "Demo",
+        name: "Demo Fast Food Combo",
+        description: "Demo SKU for franchise base scenario",
+        salePrice: 650,
+        isActive: true,
+        source: "ASSUMPTION",
+        sourceNote: "Created by Demo / Base scenario on Franchise Mode."
+      },
+      update: {
+        category: "Demo",
+        name: "Demo Fast Food Combo",
+        description: "Demo SKU for franchise base scenario",
+        salePrice: 650,
+        isActive: true,
+        source: "ASSUMPTION",
+        sourceNote: "Created by Demo / Base scenario on Franchise Mode."
+      }
+    }),
+    prisma.ingredient.upsert({
+      where: { id: demoIngredientId },
+      create: {
+        id: demoIngredientId,
+        name: "Demo combo food cost",
+        purchasePrice: 115,
+        purchaseUnit: "piece",
+        edibleYieldPercent: 100,
+        storageLossPercent: 0,
+        category: "Demo",
+        comment: "Synthetic food-cost assumption for the franchise base scenario.",
+        source: "ASSUMPTION"
+      },
+      update: {
+        purchasePrice: 115,
+        purchaseUnit: "piece",
+        edibleYieldPercent: 100,
+        storageLossPercent: 0,
+        category: "Demo",
+        comment: "Synthetic food-cost assumption for the franchise base scenario.",
+        source: "ASSUMPTION"
+      }
+    }),
+    prisma.packaging.upsert({
+      where: { id: demoPackagingId },
+      create: {
+        id: demoPackagingId,
+        name: "Demo combo packaging",
+        costPerUnit: 18,
+        usedForCategory: "Demo",
+        comment: "Synthetic packaging-cost assumption for the franchise base scenario.",
+        source: "ASSUMPTION"
+      },
+      update: {
+        costPerUnit: 18,
+        usedForCategory: "Demo",
+        comment: "Synthetic packaging-cost assumption for the franchise base scenario.",
+        source: "ASSUMPTION"
+      }
+    }),
+    prisma.recipeItem.upsert({
+      where: { id: "demo-fast-food-combo-recipe" },
+      create: {
+        id: "demo-fast-food-combo-recipe",
+        productId: demoProductId,
+        ingredientId: demoIngredientId,
+        ingredientName: "Demo combo food cost",
+        quantity: 1,
+        unit: "piece",
+        totalIngredientCost: 115,
+        comment: "Demo / Base scenario unit food cost.",
+        source: "ASSUMPTION"
+      },
+      update: {
+        productId: demoProductId,
+        ingredientId: demoIngredientId,
+        ingredientName: "Demo combo food cost",
+        quantity: 1,
+        unit: "piece",
+        totalIngredientCost: 115,
+        comment: "Demo / Base scenario unit food cost.",
+        source: "ASSUMPTION"
+      }
+    }),
+    prisma.productPackaging.upsert({
+      where: { id: "demo-fast-food-combo-packaging-link" },
+      create: {
+        id: "demo-fast-food-combo-packaging-link",
+        productId: demoProductId,
+        packagingId: demoPackagingId,
+        units: 1,
+        comment: "Demo / Base scenario packaging cost."
+      },
+      update: {
+        productId: demoProductId,
+        packagingId: demoPackagingId,
+        units: 1,
+        comment: "Demo / Base scenario packaging cost."
+      }
+    }),
+    prisma.capexItem.upsert({
+      where: { id: "demo-franchise-capex-equipment" },
+      create: {
+        id: "demo-franchise-capex-equipment",
+        category: "Demo kitchen equipment",
+        amount: 1_250_000,
+        usefulLifeMonths: 36,
+        supplierComment: "Demo / Base scenario CAPEX.",
+        required: true,
+        paidBeforeOpening: true,
+        source: "ASSUMPTION"
+      },
+      update: {
+        amount: 1_250_000,
+        usefulLifeMonths: 36,
+        supplierComment: "Demo / Base scenario CAPEX.",
+        required: true,
+        paidBeforeOpening: true,
+        source: "ASSUMPTION"
+      }
+    }),
+    prisma.capexItem.upsert({
+      where: { id: "demo-franchise-capex-renovation" },
+      create: {
+        id: "demo-franchise-capex-renovation",
+        category: "Demo renovation and signage",
+        amount: 300_000,
+        usefulLifeMonths: 36,
+        supplierComment: "Demo / Base scenario CAPEX.",
+        required: true,
+        paidBeforeOpening: true,
+        source: "ASSUMPTION"
+      },
+      update: {
+        amount: 300_000,
+        usefulLifeMonths: 36,
+        supplierComment: "Demo / Base scenario CAPEX.",
+        required: true,
+        paidBeforeOpening: true,
+        source: "ASSUMPTION"
+      }
+    }),
+    prisma.franchiseSettings.upsert({
+      where: { id: franchiseId },
+      create: {
+        id: franchiseId,
+        ...demoFranchiseSettings
+      },
+      update: demoFranchiseSettings
+    })
+  ]);
+}
+
+const demoFranchiseSettings: FranchiseData = {
+  lumpSumFee: 450_000,
+  royaltyType: "percent_of_revenue",
+  royaltyRate: 5,
+  fixedMonthlyRoyalty: 0,
+  marketingFeeRate: 2,
+  supplyChainMarkup: 7,
+  trainingFee: 90_000,
+  openingSupportFee: 100_000,
+  monthlySupportCostPerFranchisee: 22_000,
+  franchisorFixedTeamCosts: 240_000,
+  openingInventory: 180_000,
+  launchMarketing: 120_000,
+  rentDeposit: 220_000,
+  contingencyAmount: 0,
+  contingencyPercent: 7,
+  loanAmount: 0,
+  loanPaymentsMonthly: 0,
+  ownerWithdrawalsMonthly: 0,
+  numberOfFranchisees: 4,
+  monthlyFixedFees: 15_000,
+  franchiseWorkingDaysPerMonth: 30,
+  franchiseAvgOrdersPerDay: 150,
+  franchiseAvgItemsPerOrder: 1.8,
+  franchiseAvgCheck: 650,
+  franchiseDeliverySharePercent: 55,
+  franchiseAggregatorSharePercent: 60,
+  franchiseAcquiringRatePercent: 2.2,
+  franchiseAggregatorCommissionPercent: 22,
+  franchiseLogisticsPerOrder: 90,
+  franchiseMarketingPerSku: 15,
+  franchiseRevenueTaxRatePercent: 6,
+  franchiseProfitTaxRatePercent: 0,
+  franchiseVatRatePercent: 0,
+  franchiseOtherTaxesPerMonth: 0,
+  franchiseLoanPaymentsPerMonth: 0,
+  franchiseOwnerWithdrawalsPerMonth: 0,
+  franchiseRent: 190_000,
+  franchisePayroll: 320_000,
+  franchiseUtilities: 45_000,
+  franchiseSoftware: 18_000,
+  franchiseAccounting: 25_000,
+  franchiseRepairs: 18_000,
+  franchiseOtherFixedOpex: 35_000,
+  forecastMonths: 24,
+  revenueTrendType: "ramp_up",
+  monthlyGrowthRatePercent: 0,
+  monthlyDeclineRatePercent: 0,
+  rampUpMonths: 5,
+  rampUpStartPercent: 65,
+  seasonalityEnabled: false,
+  franchiseInputsCopiedFromStore: false,
+  source: "ASSUMPTION"
+};
 
 function normalizeTrendType(value: unknown) {
   const trend = String(value ?? "flat");

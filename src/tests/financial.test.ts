@@ -400,6 +400,49 @@ describe("financial calculations", () => {
     expect(franchise.franchisee.paybackMonth24).toBeNull();
   });
 
+  it("does not show franchise payback for empty assumptions", () => {
+    const franchise = calculateFranchiseFinancialModel({
+      products: [product],
+      store: franchiseStore,
+      opex: [],
+      capex: [],
+      tax: {},
+      model: makeStoreModelResult(),
+      franchise: {}
+    });
+    const paybackScenario = franchise.scenarios.rows.find((row) => row.metric === "Payback month");
+
+    expect(franchise.franchisee.paybackMonth).toBeNull();
+    expect(franchise.franchisee.paybackMonth24).toBeNull();
+    expect(paybackScenario).toMatchObject({ Downside: null, Base: null, Upside: null });
+    expect(franchise.missingDataWarnings).toContain("Franchisee Store Inputs не заполнены.");
+  });
+
+  it("does not show franchise payback when SKU cost assumptions are missing", () => {
+    const noCostProduct: ProductInput = {
+      id: "sku-no-cost",
+      category: "Tests",
+      name: "No cost SKU",
+      salePrice: 650,
+      recipes: [],
+      packagingLinks: []
+    };
+    const franchise = calculateFranchiseFinancialModel({
+      products: [noCostProduct],
+      store: franchiseStore,
+      opex: franchiseOpex,
+      capex: [{ category: "CAPEX", amount: 1_000_000, paidBeforeOpening: true }],
+      tax: {},
+      model: makeStoreModelResult(),
+      franchise: { ...franchiseInputs }
+    });
+
+    expect(franchise.franchisee.revenueMonth12).toBeGreaterThan(0);
+    expect(franchise.franchisee.netCashflowMonth12).toBeGreaterThan(0);
+    expect(franchise.franchisee.paybackMonth).toBeNull();
+    expect(franchise.missingDataWarnings).toContain("SKU себестоимость отсутствует.");
+  });
+
   it("calculates franchise ROI", () => {
     const model = makeStoreModelResult({
       monthlyRevenue: 1_000_000,
