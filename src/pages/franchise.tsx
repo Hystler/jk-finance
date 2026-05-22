@@ -42,22 +42,23 @@ export default function FranchisePage({ franchise, franchiseModel }: any) {
     : cashflow24.find((row: any) => row.month === franchisee.paybackMonth24);
   const chartHeight = 320;
   const sensitivityHeight = Math.max(320, franchiseModel.sensitivity.length * 42);
-  const statusLabel = franchiseModel.status === "good" ? "good" : franchiseModel.status === "critical" ? "critical" : "warning";
+  const statusClassName = franchiseModel.status === "good" ? "good" : franchiseModel.status === "critical" ? "critical" : "warning";
+  const statusLabel = franchiseModel.status === "good" ? "Готово" : franchiseModel.status === "critical" ? "Ошибка данных" : "Требуется проверка";
   const hasRevenueForecast = forecast.some((row: any) => row.revenue > 0);
   const hasPaybackData = cashflow24.some((row: any) => row.openingInvestment > 0 || row.cumulativeCashflow !== 0);
   const hasMissingModelInputs = franchiseModel.missingDataWarnings.length > 0;
   const paybackValue = franchisee.paybackMonth == null
-    ? hasMissingModelInputs ? "Недостаточно данных" : "not reached"
+    ? hasMissingModelInputs ? "Недостаточно данных" : "не достигнут"
     : `${franchisee.paybackMonth} мес.`;
 
   return (
     <Shell>
       <div className="pageHeader franchiseHeader">
         <div>
-          <h1>Franchise Mode</h1>
-          <p>Franchise Mode считает новую точку франчайзи. Данные Store Model не используются автоматически, кроме случаев, когда вы вручную нажали “Скопировать inputs из Store Model”.</p>
+          <h1>Franchise Overview</h1>
+          <p>Расчёт новой franchisee-точки. Данные Store Model не используются автоматически, кроме случаев, когда вы вручную нажали “Скопировать inputs из Store Model”.</p>
           <div className="badgeRow">
-            <span className={`status ${statusLabel}`}>{statusLabel}</span>
+            <span className={`status ${statusClassName}`}>{statusLabel}</span>
             {franchise.franchiseInputsCopiedFromStore && <span className="pill warningPill">inputs copied from Store Model</span>}
             {franchiseModel.missingDataWarning && <span className="pill warningPill">{franchiseModel.missingDataWarning}</span>}
           </div>
@@ -71,12 +72,12 @@ export default function FranchisePage({ franchise, franchiseModel }: any) {
       </div>
 
       <div className="metrics franchiseMetrics">
-        <Metric title="Opening investment" value={rub(franchisee.openingInvestment)} />
-        <Metric title="Revenue month 1" value={rub(franchisee.revenueMonth1)} />
-        <Metric title="Revenue month 12" value={rub(franchisee.revenueMonth12)} />
+        <Metric title="Opening Investment" value={rub(franchisee.openingInvestment)} />
+        <Metric title="Revenue Month 1" value={rub(franchisee.revenueMonth1)} />
+        <Metric title="Revenue Month 12" value={rub(franchisee.revenueMonth12)} />
         <Metric title="EBITDA after fees M12" value={rub(franchisee.ebitdaAfterFeesMonth12)} tone={franchisee.ebitdaAfterFeesMonth12 < 0 ? "negative" : "positive"} />
-        <Metric title="EBITDA margin M12" value={percent(franchisee.ebitdaMarginAfterFeesMonth12)} tone={franchisee.ebitdaMarginAfterFeesMonth12 < 0.1 ? "negative" : "positive"} />
-        <Metric title="Net cashflow M12" value={rub(franchisee.netCashflowMonth12)} tone={franchisee.netCashflowMonth12 < 0 ? "negative" : "positive"} />
+        <Metric title="EBITDA Margin M12" value={percent(franchisee.ebitdaMarginAfterFeesMonth12)} tone={franchisee.ebitdaMarginAfterFeesMonth12 < 0.1 ? "negative" : "positive"} />
+        <Metric title="Net Cashflow M12" value={rub(franchisee.netCashflowMonth12)} tone={franchisee.netCashflowMonth12 < 0 ? "negative" : "positive"} />
         <Metric title="Payback" value={paybackValue} />
         <Metric title="Annual ROI" value={franchisee.annualROI == null ? "n/a" : percent(franchisee.annualROI)} tone={franchisee.annualROI != null && franchisee.annualROI < 0.3 ? "negative" : "positive"} />
       </div>
@@ -150,7 +151,7 @@ export default function FranchisePage({ franchise, franchiseModel }: any) {
             <MoneyInput name="franchiseOtherFixedOpex" label="Other fixed OPEX, ₽ / мес" value={franchise.franchiseOtherFixedOpex} step={1000} />
           </InputSection>
 
-          <InputSection title="Opening investment additions">
+          <InputSection title="Opening Investment additions">
             <MoneyInput name="trainingFee" label="Training fee, ₽" value={franchise.trainingFee} step={10000} />
             <MoneyInput name="openingSupportFee" label="Opening support fee, ₽" value={franchise.openingSupportFee} step={10000} />
             <MoneyInput name="openingInventory" label="Opening inventory, ₽" value={franchise.openingInventory} step={10000} />
@@ -190,7 +191,7 @@ export default function FranchisePage({ franchise, franchiseModel }: any) {
       <section className="band" id="charts">
         <div className="sectionHead">
           <h2>Charts</h2>
-          <span>Revenue trend, EBITDA, cashflow, payback, margins и franchisor revenue</span>
+          <span>Revenue trend, EBITDA, Cashflow, Payback, margins и Franchisor Revenue</span>
         </div>
         <div className="twoCol">
           <ChartCard title="Revenue trend">
@@ -204,10 +205,10 @@ export default function FranchisePage({ franchise, franchiseModel }: any) {
                   <Line type="monotone" dataKey="revenue" name="Revenue" stroke="#D6B56D" strokeWidth={3} dot={false} />
                 </LineChart>
               </ResponsiveContainer>
-            ) : <EmptyState text="Заполните Franchisee Store Inputs, чтобы увидеть revenue trend." />}
+            ) : <EmptyState text="Заполните Franchisee Store Inputs, чтобы увидеть Revenue trend." />}
           </ChartCard>
 
-          <ChartCard title="Revenue / EBITDA / Net cashflow">
+          <ChartCard title="Revenue / EBITDA / Net Cashflow">
             {hasRevenueForecast ? (
               <ResponsiveContainer width="100%" height={chartHeight}>
                 <ComposedChart data={forecast} margin={{ top: 16, right: 24, bottom: 8, left: 12 }}>
@@ -217,15 +218,15 @@ export default function FranchisePage({ franchise, franchiseModel }: any) {
                   <Legend />
                   <Bar dataKey="revenue" name="Revenue" fill="#D6B56D" />
                   <Line type="monotone" dataKey="ebitdaAfterFees" name="EBITDA after fees" stroke="#7FB069" strokeWidth={2} dot={false} />
-                  <Line type="monotone" dataKey="netOperatingCashflow" name="Net cashflow" stroke="#C86B5A" strokeWidth={2} dot={false} />
+                  <Line type="monotone" dataKey="netOperatingCashflow" name="Net Cashflow" stroke="#C86B5A" strokeWidth={2} dot={false} />
                 </ComposedChart>
               </ResponsiveContainer>
-            ) : <EmptyState text="Нет данных для графика EBITDA и cashflow." />}
+            ) : <EmptyState text="Нет данных для графика EBITDA и Cashflow." />}
           </ChartCard>
         </div>
 
         <div className="twoCol">
-          <ChartCard title="Cumulative cashflow / payback">
+          <ChartCard title="Cumulative Cashflow / Payback">
             {hasPaybackData ? (
               <ResponsiveContainer width="100%" height={chartHeight}>
                 <LineChart data={cashflow24} margin={{ top: 16, right: 24, bottom: 8, left: 12 }}>
@@ -234,10 +235,10 @@ export default function FranchisePage({ franchise, franchiseModel }: any) {
                   <Tooltip formatter={(value: number) => rub(value)} labelFormatter={(label) => `Month ${label}`} />
                   <ReferenceLine y={0} stroke="#706B64" strokeDasharray="4 4" />
                   {paybackPoint && <ReferenceDot x={paybackPoint.month} y={paybackPoint.cumulativeCashflow} r={6} fill="#7FB069" stroke="#E8D8B0" />}
-                  <Line type="monotone" dataKey="cumulativeCashflow" name="Cumulative cashflow" stroke="#D6B56D" strokeWidth={3} dot={false} />
+                  <Line type="monotone" dataKey="cumulativeCashflow" name="Cumulative Cashflow" stroke="#D6B56D" strokeWidth={3} dot={false} />
                 </LineChart>
               </ResponsiveContainer>
-            ) : <EmptyState text="Заполните opening investment и cashflow assumptions." />}
+            ) : <EmptyState text="Заполните Opening Investment и Cashflow assumptions." />}
           </ChartCard>
 
           <ChartCard title="Margin chart">
@@ -325,7 +326,7 @@ export default function FranchisePage({ franchise, franchiseModel }: any) {
       <section className="band" id="cashflow">
         <div className="sectionHead">
           <h2>24M Cashflow</h2>
-          <span>Month 0 включает opening investment, дальше каждый месяц считается отдельно</span>
+          <span>Month 0 включает Opening Investment, дальше каждый месяц считается отдельно</span>
         </div>
         <div className="tableScroll cashflowTableWrap">
           <table className="cashflowTable">
@@ -339,7 +340,7 @@ export default function FranchisePage({ franchise, franchiseModel }: any) {
                 <th>Fixed</th>
                 <th>EBITDA after fees</th>
                 <th>Taxes</th>
-                <th>Net cashflow</th>
+                <th>Net Cashflow</th>
                 <th>Cumulative</th>
               </tr>
             </thead>
@@ -366,15 +367,15 @@ export default function FranchisePage({ franchise, franchiseModel }: any) {
       <section className="band" id="franchisor">
         <div className="sectionHead">
           <h2>Franchisor economics</h2>
-          <span>{franchise.numberOfFranchisees} franchisee(s) in network mode</span>
+          <span>{franchise.numberOfFranchisees} franchisee в network mode</span>
         </div>
         <div className="metrics compactMetrics">
-          <Metric title="Monthly revenue / franchisee" value={rub(franchisor.monthlyRevenue)} />
-          <Metric title="One-time revenue" value={rub(franchisor.oneTimeRevenue)} />
-          <Metric title="Allocated fixed team" value={rub(franchisor.allocatedFixedTeamCosts)} />
+          <Metric title="Monthly Revenue / Franchisee" value={rub(franchisor.monthlyRevenue)} />
+          <Metric title="One-time Revenue" value={rub(franchisor.oneTimeRevenue)} />
+          <Metric title="Allocated Fixed Team" value={rub(franchisor.allocatedFixedTeamCosts)} />
           <Metric title="Franchisor EBITDA / franchisee" value={rub(franchisor.ebitda)} tone={franchisor.ebitda < 0 ? "negative" : "positive"} />
-          <Metric title="Total monthly EBITDA" value={rub(franchisor.totalMonthlyEBITDA)} tone={franchisor.totalMonthlyEBITDA < 0 ? "negative" : "positive"} />
-          <Metric title="EBITDA margin" value={percent(franchisor.ebitdaMargin)} />
+          <Metric title="Total Monthly EBITDA" value={rub(franchisor.totalMonthlyEBITDA)} tone={franchisor.totalMonthlyEBITDA < 0 ? "negative" : "positive"} />
+          <Metric title="EBITDA Margin" value={percent(franchisor.ebitdaMargin)} />
         </div>
         <div className="tableScroll">
           <table>

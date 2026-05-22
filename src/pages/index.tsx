@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { AlertTriangle, Download, Eye, FileUp } from "lucide-react";
+import { AlertTriangle, Download, FileUp } from "lucide-react";
 import {
   Bar,
   BarChart,
@@ -20,6 +20,7 @@ import {
 import { loadModel } from "@/lib/model";
 import { truncateSkuName } from "@/lib/charts";
 import { num, percent, rub } from "@/lib/format";
+import { calculateModelReadiness } from "@/lib/readiness";
 import { Shell } from "@/components/Shell";
 
 export { Shell } from "@/components/Shell";
@@ -29,6 +30,9 @@ type KpiCard = {
   value: string;
   note?: string;
   tone?: "positive" | "negative";
+  badge?: string;
+  subtext?: string;
+  tooltip?: string;
 };
 
 export async function getServerSideProps() {
@@ -56,7 +60,9 @@ export default function Dashboard({ summary, checks, diagnostics, economics, sen
   const weak = [...withCosts].sort((a, b) => a.contributionMarginPercent - b.contributionMarginPercent).slice(0, 5);
   const activeSkuCount = products.filter((sku: any) => sku.isActive !== false).length;
   const missingRecipeCount = economics.filter((sku: any) => !sku.hasRecipe).length;
+  const missingPackagingCount = economics.filter((sku: any) => !sku.hasPackaging).length;
   const negativeEbitdaCount = economics.filter((sku: any) => sku.ebitdaPerItem < 0).length;
+  const opexIncomplete = !opex.some((row: any) => Number(row.amount ?? 0) > 0) || summary.fixedCosts <= 0;
   const forecast = Array.from({ length: 12 }, (_, index) => ({
     month: index + 1,
     revenue: summary.monthlyRevenue,
@@ -92,38 +98,50 @@ export default function Dashboard({ summary, checks, diagnostics, economics, sen
   const tornadoHeight = Math.max(320, tornado.length * 42);
   const franchisePayback = franchiseModel?.franchisee?.cumulativeCashflow24 ?? [];
   const hasFranchisePreview = franchisePayback.some((row: any) => row.openingInvestment > 0 || row.cumulativeCashflow !== 0);
-  const completeness = [
-    { label: "SKU prices imported", done: products.filter((sku: any) => sku.salePrice > 0).length, total: products.length },
-    { label: "Recipes filled", done: economics.filter((sku: any) => sku.hasRecipe).length, total: economics.length },
-    { label: "Packaging filled", done: economics.filter((sku: any) => sku.hasPackaging).length, total: economics.length },
-    { label: "CAPEX filled", done: capex.filter((row: any) => row.amount > 0).length, total: Math.max(capex.length, 1) },
-    { label: "OPEX filled", done: opex.filter((row: any) => row.amount > 0).length, total: Math.max(opex.length, 1) },
-    { label: "Store Model filled", done: [store.workingDaysPerMonth, store.avgOrdersPerDay, store.avgItemsPerOrder, store.avgCheck].filter((value: number) => value > 0).length, total: 4 },
-    { label: "Franchise Mode filled", done: [
-      franchiseModel.franchise.franchiseWorkingDaysPerMonth,
-      franchiseModel.franchise.franchiseAvgOrdersPerDay,
-      franchiseModel.franchise.franchiseAvgItemsPerOrder,
-      franchiseModel.franchise.franchiseAvgCheck,
-      franchiseModel.franchise.franchiseRent + franchiseModel.franchise.franchisePayroll + franchiseModel.franchise.franchiseOtherFixedOpex
-    ].filter((value: number) => value > 0).length, total: 5 }
-  ];
-  const readiness = calculateReadiness(completeness, checks, summary);
+  const readiness = calculateModelReadiness({
+    products,
+    economics,
+    capex,
+    opex,
+    store,
+    model: summary,
+    checks,
+    franchiseMissingWarnings: franchiseModel.missingDataWarnings
+  });
+  const completeness = readiness.items;
+  const isDraftModel = readiness.score < 80 || !readiness.isInvestorReady;
+  const draftTooltip = "Расчёт предварительный: не заполнены рецептуры или упаковка.";
+  const foodCostDraftText = missingRecipeCount > 0 || missingPackagingCount > 0
+    ? "Расчёт предварительный: не заполнены рецептуры или упаковка."
+    : undefined;
+  const ebitdaSubtext = opexIncomplete
+    ? "EBITDA incomplete: OPEX не заполнен."
+    : foodCostDraftText;
   const mainKpis: KpiCard[] = [
-    { title: "Monthly revenue", value: rub(summary.monthlyRevenue), note: "current base case" },
-    { title: "EBITDA", value: rub(summary.ebitda), note: percent(summary.ebitdaMargin), tone: summary.ebitda < 0 ? "negative" : "positive" },
-    { title: "Payback", value: summary.paybackMonth ? `${summary.paybackMonth} мес.` : "n/a", note: "opening investment recovery" },
-    { title: "ROI", value: summary.roi == null ? "n/a" : percent(summary.roi), note: "annualized cashflow return", tone: summary.roi != null && summary.roi < 0 ? "negative" : "positive" }
+    { title: "Monthly Revenue", value: rub(summary.monthlyRevenue), note: "Текущий base case" },
+    { title: "EBITDA", value: rub(summary.ebitda), note: percent(summary.ebitdaMargin), tone: summary.ebitda < 0 ? "negative" : "positive", badge: isDraftModel ? "Draft estimate" : undefined, subtext: ebitdaSubtext, tooltip: draftTooltip },
+    { title: "Payback", value: summary.paybackMonth ? `${summary.paybackMonth} мес.` : "n/a", note: "Возврат Opening Investment", badge: isDraftModel ? "Draft estimate" : undefined, subtext: foodCostDraftText, tooltip: draftTooltip },
+    { title: "ROI", value: summary.roi == null ? "n/a" : percent(summary.roi), note: "Годовая доходность Cashflow", tone: summary.roi != null && summary.roi < 0 ? "negative" : "positive", badge: isDraftModel ? "Draft estimate" : undefined, subtext: foodCostDraftText, tooltip: draftTooltip }
   ];
   const secondaryKpis: KpiCard[] = [
     { title: "Gross Profit", value: rub(summary.grossProfit) },
     { title: "Operating Cashflow", value: rub(summary.operatingCashflow), tone: summary.operatingCashflow < 0 ? "negative" : "positive" },
     { title: "Opening Investment", value: rub(summary.initialInvestment) },
-    { title: "Break-even / day", value: summary.breakEvenOrdersPerDay == null ? "n/a" : `${Math.ceil(summary.breakEvenOrdersPerDay)} заказов` },
-    { title: "Active SKU count", value: num(activeSkuCount, 0) },
-    { title: "Missing recipes", value: num(missingRecipeCount, 0), tone: missingRecipeCount > 0 ? "negative" : "positive" },
+    { title: "Break-even / day", value: summary.breakEvenOrdersPerDay == null ? "n/a" : `${Math.ceil(summary.breakEvenOrdersPerDay)} заказов`, note: summary.breakEvenUnavailableReason ? translateBreakEvenReason(summary.breakEvenUnavailableReason) : undefined },
+    { title: "Active SKU", value: num(activeSkuCount, 0) },
+    { title: "Нет рецептуры", value: num(missingRecipeCount, 0), tone: missingRecipeCount > 0 ? "negative" : "positive" },
     { title: "Negative EBITDA SKU", value: num(negativeEbitdaCount, 0), tone: negativeEbitdaCount > 0 ? "negative" : "positive" },
-    { title: "Model Readiness", value: `${readiness.score}%`, note: readiness.status }
+    { title: "Model Readiness", value: `${readiness.score}%`, note: readiness.status },
+    { title: "Investor-grade status", value: readiness.isInvestorReady ? "true" : "false", tone: readiness.isInvestorReady ? "positive" : "negative" }
   ];
+  const modelDiagnostics = buildModelDiagnostics({
+    readiness,
+    missingRecipeCount,
+    missingPackagingCount,
+    opexIncomplete,
+    breakEvenReason: summary.breakEvenUnavailableReason,
+    sensitivity
+  });
 
   return (
     <Shell>
@@ -132,7 +150,7 @@ export default function Dashboard({ summary, checks, diagnostics, economics, sen
           <div>
             <div className="eyebrow">Premium franchise analytics</div>
             <h1>JK Finance</h1>
-            <p>Franchise Financial Intelligence for fast-food economics, investor readiness, scenario control and operating cashflow visibility.</p>
+            <p>Финансовая модель франшизы: Unit Economics, Forecast, Investor Readiness, сценарии и контроль Operating Cashflow.</p>
           </div>
           <div className="heroControls">
             <label className="scenarioSelect">Scenario
@@ -146,7 +164,6 @@ export default function Dashboard({ summary, checks, diagnostics, economics, sen
             <div className="actions">
               <a className="button primary" href="/api/export/full"><Download size={16} /> Export XLSX</a>
               <Link className="button" href="/import"><FileUp size={16} /> Import</Link>
-              <Link className="button" href="/investor"><Eye size={16} /> Investor View</Link>
             </div>
           </div>
         </div>
@@ -168,19 +185,19 @@ export default function Dashboard({ summary, checks, diagnostics, economics, sen
         <div className="summaryGrid">
           <div>
             <strong>{activeSkuCount}</strong>
-            <span>active SKU</span>
+            <span>активных SKU</span>
           </div>
           <div>
             <strong>{missingRecipeCount}</strong>
-            <span>missing recipes</span>
+            <span>нет рецептуры</span>
           </div>
           <div>
             <strong>{negativeEbitdaCount}</strong>
-            <span>negative EBITDA SKU</span>
+            <span>SKU с отрицательной EBITDA</span>
           </div>
           <div>
             <strong>{checks.filter((check: any) => check.severity === "critical").length}</strong>
-            <span>critical audit items</span>
+            <span>критичных проверок</span>
           </div>
         </div>
         <div className="actions modelLinks">
@@ -205,7 +222,7 @@ export default function Dashboard({ summary, checks, diagnostics, economics, sen
                 <span>overall readiness</span>
               </div>
             </div>
-            {readiness.score < 80 && <div className="readinessWarning">Model is not ready for investment decisions. Complete recipes, packaging, store inputs, CAPEX and OPEX before external use.</div>}
+            {!readiness.isInvestorReady && <div className="readinessWarning">{readiness.investorWarning}</div>}
           </div>
           <div className="progressGrid">
             {completeness.slice(0, 6).map((item) => <ProgressCard key={item.label} {...item} />)}
@@ -234,7 +251,7 @@ export default function Dashboard({ summary, checks, diagnostics, economics, sen
         </div>
       </section>
 
-      <Diagnostics diagnostics={diagnostics} />
+      <ModelDiagnostics diagnostics={modelDiagnostics} />
 
       <div className="twoCol">
         <section className="band">
@@ -369,21 +386,29 @@ export default function Dashboard({ summary, checks, diagnostics, economics, sen
   );
 }
 
-function Diagnostics({ diagnostics }: { diagnostics: any[] }) {
+function ModelDiagnostics({ diagnostics }: { diagnostics: ReturnType<typeof buildModelDiagnostics> }) {
   return (
-    <section className="band warningPanel">
-      <h2>Почему EBITDA / Cashflow отрицательные</h2>
-      {diagnostics.length ? diagnostics.map((item) => <div className={`check ${item.severity}`} key={item.message}>{item.message}</div>) : <p>Явных причин отрицательных значений сейчас нет. Для реальной модели заполните рецептуры, упаковку и операционные assumptions.</p>}
+    <section className={`band ${diagnostics.isReady ? "successPanelSoft" : "warningPanel"}`}>
+      <div className="sectionHead">
+        <h2>Model Diagnostics</h2>
+        <span>{diagnostics.status}</span>
+      </div>
+      <p className="diagnosticLead">{diagnostics.message}</p>
+      <div className="checks">
+        {diagnostics.blockers.map((item) => <div className={`check ${item.severity}`} key={item.message}>{item.message}</div>)}
+      </div>
     </section>
   );
 }
 
-function Metric({ title, value, note, tone }: { title: string; value: string; note?: string; tone?: "positive" | "negative" }) {
+function Metric({ title, value, note, tone, badge, subtext, tooltip }: KpiCard) {
   return (
-    <div className="metric">
+    <div className="metric" title={tooltip}>
       <span>{title}</span>
       <strong className={tone}>{value}</strong>
+      {badge && <em className="draftBadge">{badge}</em>}
       {note && <small>{note}</small>}
+      {subtext && <small className="metricSubtext">{subtext}</small>}
     </div>
   );
 }
@@ -423,13 +448,46 @@ function compactRub(value: number) {
   return num(value, 0);
 }
 
-function calculateReadiness(completeness: Array<{ done: number; total: number }>, checks: any[], summary: any) {
-  const completionScore = completeness.length
-    ? completeness.reduce((sum, item) => sum + Math.min(1, item.done / Math.max(item.total, 1)), 0) / completeness.length
-    : 0;
-  const criticalPenalty = Math.min(0.35, checks.filter((check: any) => check.severity === "critical").length * 0.05);
-  const economicsPenalty = summary.monthlyRevenue <= 0 || summary.operatingCashflow <= 0 ? 0.1 : 0;
-  const score = Math.max(0, Math.round((completionScore - criticalPenalty - economicsPenalty) * 100));
-  const status = score >= 80 ? "Investor-ready draft" : score >= 55 ? "Needs audit before external sharing" : "Not ready for external sharing";
-  return { score, status };
+function buildModelDiagnostics(input: {
+  readiness: any;
+  missingRecipeCount: number;
+  missingPackagingCount: number;
+  opexIncomplete: boolean;
+  breakEvenReason?: string | null;
+  sensitivity: any[];
+}) {
+  const blockers: Array<{ severity: "info" | "warning" | "critical"; message: string }> = [];
+  if (input.missingRecipeCount > 0) blockers.push({ severity: "warning", message: `Нет рецептуры: ${input.missingRecipeCount} SKU.` });
+  if (input.missingPackagingCount > 0) blockers.push({ severity: "warning", message: `Нет упаковки: ${input.missingPackagingCount} SKU.` });
+  if (input.opexIncomplete) blockers.push({ severity: "critical", message: "OPEX incomplete: заполните постоянные расходы, чтобы EBITDA стала достоверной." });
+  if (input.breakEvenReason) blockers.push({ severity: "warning", message: translateBreakEvenReason(input.breakEvenReason) });
+  const incompleteSensitivity = input.sensitivity.filter((row) => !row.driverAvailable && ["Rent", "Payroll", "Aggregator Commission"].includes(row.parameter));
+  if (incompleteSensitivity.length) {
+    blockers.push({ severity: "warning", message: `Sensitivity drivers incomplete: ${incompleteSensitivity.map((row) => row.parameter).join(", ")}.` });
+  }
+
+  const isReady = input.readiness.isInvestorReady && blockers.length === 0;
+  const status = isReady
+    ? "Готова"
+    : input.readiness.score >= 55
+      ? "Черновая"
+      : "Не готова для внешнего показа";
+  const message = isReady
+    ? "Модель готова к внешнему показу: ключевые блоки заполнены, KPI можно использовать как рабочую investor-grade оценку."
+    : "Модель не готова для внешнего показа. Заполните рецептуры, упаковку и OPEX, чтобы расчёты EBITDA, ROI и Payback стали достоверными.";
+
+  return {
+    isReady,
+    status,
+    message,
+    blockers: blockers.length ? blockers : [{ severity: "info" as const, message: "Критичных блокеров не найдено. Проверьте assumptions перед внешним показом." }]
+  };
+}
+
+function translateBreakEvenReason(reason: string) {
+  if (reason.includes("OPEX missing")) return "Break-even unavailable: OPEX missing.";
+  if (reason.includes("Contribution Margin invalid")) return "Break-even unavailable: Contribution Margin invalid.";
+  if (reason.includes("Average Check missing")) return "Break-even unavailable: Average Check missing.";
+  if (reason.includes("Working Days missing")) return "Break-even unavailable: Working Days missing.";
+  return reason;
 }

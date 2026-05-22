@@ -105,18 +105,18 @@ export default function MenuPage({ economics, products, categories }: any) {
                 <th>Category</th>
                 <th className="stickyCol">SKU</th>
                 <th>Price, ₽</th>
-                {(mode === "basic" || mode === "unit" || mode === "full") && <th>Ingredient cost</th>}
+                {(mode === "basic" || mode === "unit" || mode === "full") && <th>Ingredient Cost</th>}
                 {(mode === "full") && <th>Ingredient %</th>}
                 {(mode === "basic" || mode === "unit" || mode === "full") && <th>Packaging</th>}
-                {(mode === "unit" || mode === "full") && <th>Variable cost</th>}
+                {(mode === "unit" || mode === "full") && <th>Variable Cost</th>}
                 {mode === "full" && <th>Taxes/item</th>}
                 {mode === "full" && <th>Delivery/commission</th>}
                 {mode === "full" && <th>Marketing/item</th>}
                 {mode === "full" && <th>Depreciation/item</th>}
-                {mode === "full" && <th>Fixed allocation</th>}
-                {mode === "full" && <th>Total cost/item</th>}
-                {(mode === "basic" || mode === "full") && <th>Gross profit</th>}
-                {(mode === "basic" || mode === "full") && <th>Gross margin</th>}
+                {mode === "full" && <th>Fixed Allocation</th>}
+                {mode === "full" && <th>Total Cost/item</th>}
+                {(mode === "basic" || mode === "full") && <th>Gross Profit</th>}
+                {(mode === "basic" || mode === "full") && <th>Gross Margin</th>}
                 {(mode === "unit" || mode === "full") && <th>Contribution</th>}
                 {mode === "full" && <th>Contribution %</th>}
                 {(mode === "unit" || mode === "full") && <th>EBITDA/item</th>}
@@ -158,7 +158,7 @@ export default function MenuPage({ economics, products, categories }: any) {
                   {(mode === "unit" || mode === "full") && <MoneyCell value={row.ebitdaPerItem} />}
                   {(mode === "unit" || mode === "full") && <td className={row.ebitdaMarginPercent < 0 ? "negative" : "positive"}>{percent(row.ebitdaMarginPercent)}</td>}
                   <td>
-                    <span className={`status ${statusClass(row.status)}`} title={row.warnings?.join("\n")}>{row.status}</span>
+                    <span className={`status ${statusClass(row.status)}`} title={row.warnings?.join("\n")}>{translateStatus(row.status)}</span>
                   </td>
                   <td className="stickyAction">
                     <div className="iconActions">
@@ -201,7 +201,7 @@ export default function MenuPage({ economics, products, categories }: any) {
             ) : (
               <div className="successPanel">
                 <h3>SKU создан</h3>
-                <p>Теперь можно заполнить рецептуру и упаковку, чтобы unit-economics стала реальной.</p>
+                <p>Теперь можно заполнить рецептуру и упаковку, чтобы Unit Economics стала реальной.</p>
                 <div className="actions">
                   <Link className="button primary" href={`/sku/${created.id}`}>Добавить рецептуру</Link>
                   <Link className="button" href={`/sku/${created.id}`}>Добавить упаковку</Link>
@@ -217,9 +217,24 @@ export default function MenuPage({ economics, products, categories }: any) {
 }
 
 function MoneyCell({ value }: { value: number }) {
-  return <td className={value < 0 ? "negative" : value > 0 ? "positive" : ""}>{rub(value)}</td>;
+  return <td className={`moneyCell ${value < 0 ? "negative" : value > 0 ? "positive" : ""}`}>{rub(value)}</td>;
 }
 
 export function statusClass(status: string) {
   return status.replace(/\s+/g, "-");
+}
+
+function translateStatus(status: string) {
+  const labels: Record<string, string> = {
+    good: "Готово",
+    warning: "Требуется проверка",
+    bad: "Ошибка данных",
+    "missing recipe": "Нет рецептуры",
+    "missing packaging": "Нет упаковки",
+    "negative contribution": "Отрицательная маржа",
+    "negative EBITDA": "Отрицательная EBITDA",
+    "high food cost": "Высокий Food Cost",
+    "low margin": "Низкая маржа"
+  };
+  return labels[status] ?? status;
 }

@@ -103,6 +103,61 @@ export function variableOpexTotal(opex: OpexInput[], store: StoreInputs): number
     }, 0);
 }
 
+export function calculateBreakEven(input: {
+  fixedCosts: number;
+  contributionMarginPercent: number;
+  avgCheck: number;
+  workingDaysPerMonth: number;
+}) {
+  const fixedCosts = money(input.fixedCosts);
+  const contributionMarginPercent = input.contributionMarginPercent;
+  const avgCheck = money(input.avgCheck);
+  const workingDaysPerMonth = money(input.workingDaysPerMonth);
+
+  if (fixedCosts <= 0) {
+    return {
+      breakEvenRevenue: null,
+      breakEvenOrders: null,
+      breakEvenOrdersPerDay: null,
+      breakEvenUnavailableReason: "Break-even unavailable: OPEX missing"
+    };
+  }
+  if (avgCheck <= 0) {
+    return {
+      breakEvenRevenue: null,
+      breakEvenOrders: null,
+      breakEvenOrdersPerDay: null,
+      breakEvenUnavailableReason: "Break-even unavailable: Average Check missing"
+    };
+  }
+  if (workingDaysPerMonth <= 0) {
+    return {
+      breakEvenRevenue: null,
+      breakEvenOrders: null,
+      breakEvenOrdersPerDay: null,
+      breakEvenUnavailableReason: "Break-even unavailable: Working Days missing"
+    };
+  }
+  if (!Number.isFinite(contributionMarginPercent) || contributionMarginPercent <= 0) {
+    return {
+      breakEvenRevenue: null,
+      breakEvenOrders: null,
+      breakEvenOrdersPerDay: null,
+      breakEvenUnavailableReason: "Break-even unavailable: Contribution Margin invalid"
+    };
+  }
+
+  const breakEvenRevenue = fixedCosts / contributionMarginPercent;
+  const breakEvenOrders = breakEvenRevenue / avgCheck;
+  const breakEvenOrdersPerDay = breakEvenOrders / workingDaysPerMonth;
+  return {
+    breakEvenRevenue,
+    breakEvenOrders,
+    breakEvenOrdersPerDay,
+    breakEvenUnavailableReason: null
+  };
+}
+
 export function calculateProductEconomics(
   product: ProductInput,
   store: StoreInputs,
@@ -233,11 +288,13 @@ export function calculateStoreModel(
   const vatReference = monthlyRevenue * percentDecimal(tax.vatRate ?? 0);
   const taxPaid = Math.max(0, revenueTax + profitTax + money(tax.otherTaxes ?? 0));
   const operatingCashflow = ebitda - taxPaid - money(store.loanPaymentsMonthly) - money(store.ownerWithdrawalsMonthly);
-  const averageContributionMarginPercent = safeDiv(monthlyRevenue - foodCostTotal - packagingTotal - variableCosts, monthlyRevenue);
-  const breakEvenRevenue = averageContributionMarginPercent > 0 ? fixedCosts / averageContributionMarginPercent : null;
-  const breakEvenOrders = breakEvenRevenue && store.avgCheck > 0 ? breakEvenRevenue / store.avgCheck : null;
-  const breakEvenOrdersPerDay =
-    breakEvenOrders && store.workingDaysPerMonth > 0 ? breakEvenOrders / store.workingDaysPerMonth : null;
+  const contributionMarginPercent = safeDiv(monthlyRevenue - foodCostTotal - packagingTotal - variableCosts, monthlyRevenue);
+  const breakEven = calculateBreakEven({
+    fixedCosts,
+    contributionMarginPercent,
+    avgCheck: store.avgCheck,
+    workingDaysPerMonth: store.workingDaysPerMonth
+  });
   const cumulativeCashflow = buildCashflow(initialInvestment, operatingCashflow, 36);
   const paybackMonth = initialInvestment > 0 && monthlyRevenue > 0 && operatingCashflow > 0
     ? cumulativeCashflow.find((row) => row.cumulativeCashflow >= 0)?.month ?? null
@@ -268,11 +325,13 @@ export function calculateStoreModel(
     taxPaid,
     operatingCashflow,
     initialInvestment,
+    contributionMarginPercent,
     paybackMonth,
     roi,
-    breakEvenRevenue,
-    breakEvenOrders,
-    breakEvenOrdersPerDay,
+    breakEvenRevenue: breakEven.breakEvenRevenue,
+    breakEvenOrders: breakEven.breakEvenOrders,
+    breakEvenOrdersPerDay: breakEven.breakEvenOrdersPerDay,
+    breakEvenUnavailableReason: breakEven.breakEvenUnavailableReason,
     monthlyDepreciation,
     cumulativeCashflow
   };

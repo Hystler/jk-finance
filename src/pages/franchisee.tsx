@@ -15,19 +15,19 @@ export default function FranchiseePage({ franchiseModel }: any) {
       <div className="pageHeader">
         <div>
           <h1>Franchisee Economics</h1>
-          <p>Read-only economics for one franchisee location. Inputs are managed in Franchise Mode.</p>
+          <p>Экономика одной franchisee-точки. Ввод данных находится в Franchise Overview.</p>
         </div>
-        <div className="actions"><Link className="button" href="/franchise">Edit Franchise Mode</Link></div>
+        <div className="actions"><Link className="button" href="/franchise">Открыть Franchise Overview</Link></div>
       </div>
       <div className="metrics">
-        <Metric title="Opening investment" value={rub(franchisee.openingInvestment)} />
+        <Metric title="Opening Investment" value={rub(franchisee.openingInvestment)} />
         <Metric title="Revenue" value={rub(franchisee.revenueMonth12)} />
-        <Metric title="Gross profit" value={rub(franchisee.grossProfit)} />
+        <Metric title="Gross Profit" value={rub(franchisee.grossProfit)} />
         <Metric title="Royalty" value={rub(franchisee.royalty)} />
-        <Metric title="Marketing fee" value={rub(franchisee.marketingFee)} />
+        <Metric title="Marketing Fee" value={rub(franchisee.marketingFee)} />
         <Metric title="OPEX" value={rub(franchisee.fixedCosts.total)} />
         <Metric title="EBITDA after fees" value={rub(franchisee.ebitdaAfterFeesMonth12)} />
-        <Metric title="Net cashflow" value={rub(franchisee.netCashflowMonth12)} />
+        <Metric title="Net Cashflow" value={rub(franchisee.netCashflowMonth12)} />
         <Metric title="Payback" value={franchisee.paybackMonth == null ? "n/a" : `${franchisee.paybackMonth} мес.`} />
         <Metric title="ROI" value={franchisee.annualROI == null ? "n/a" : percent(franchisee.annualROI)} />
       </div>

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { useState } from "react";
-import { BarChart3, Database, Download, Eye, FileSearch, FileUp, Gauge, GitBranch, Landmark, Menu, Table2, X } from "lucide-react";
+import { BarChart3, Database, Download, FileSearch, FileUp, Gauge, GitBranch, Landmark, Menu, Table2, TrendingUp, X } from "lucide-react";
 
 const navGroups = [
   {
@@ -9,18 +9,24 @@ const navGroups = [
     icon: Gauge,
     href: "/",
     aliases: ["/dashboard"],
-    links: [{ href: "/", label: "Executive", description: "Executive summary" }]
+    links: [{ href: "/", label: "Executive", description: "Сводка модели" }]
+  },
+  {
+    label: "Forecast",
+    icon: TrendingUp,
+    href: "/forecast",
+    links: [{ href: "/forecast", label: "SKU Forecast", description: "Ручной прогноз SKU" }]
   },
   {
     label: "Model",
     icon: BarChart3,
     href: "/unit-economics",
     links: [
-      { href: "/unit-economics", label: "Unit Economics", description: "Per-order margin" },
-      { href: "/pnl", label: "P&L", description: "Monthly profit bridge" },
-      { href: "/cashflow", label: "Cashflow", description: "Investment recovery" },
-      { href: "/break-even", label: "Break-even", description: "Required traffic" },
-      { href: "/store-model", label: "Store Model", description: "Operating inputs" }
+      { href: "/unit-economics", label: "Unit Economics", description: "Маржа заказа и SKU" },
+      { href: "/pnl", label: "P&L", description: "Месячный profit bridge" },
+      { href: "/cashflow", label: "Cashflow", description: "Возврат инвестиций" },
+      { href: "/break-even", label: "Break-even", description: "Необходимый трафик" },
+      { href: "/store-model", label: "Store Model", description: "Операционные inputs" }
     ]
   },
   {
@@ -28,8 +34,8 @@ const navGroups = [
     icon: GitBranch,
     href: "/sensitivity",
     links: [
-      { href: "/sensitivity", label: "Sensitivity", description: "Parameter deltas" },
-      { href: "/scenario-builder", label: "Scenario Builder", description: "Case comparison" }
+      { href: "/sensitivity", label: "Sensitivity", description: "Дельты по параметрам" },
+      { href: "/scenario-builder", label: "Scenario Builder", description: "Сравнение сценариев" }
     ]
   },
   {
@@ -37,10 +43,10 @@ const navGroups = [
     icon: Landmark,
     href: "/franchise",
     links: [
-      { href: "/franchise", label: "Overview", description: "Franchise model" },
-      { href: "/franchisee", label: "Franchisee", description: "Unit economics" },
-      { href: "/franchisor", label: "Franchisor", description: "Network economics" },
-      { href: "/investor", label: "Investor View", description: "External summary" }
+      { href: "/franchise", label: "Franchise Overview", description: "Модель франшизы" },
+      { href: "/franchisee", label: "Franchisee", description: "Экономика точки" },
+      { href: "/franchisor", label: "Franchisor", description: "Экономика сети" },
+      { href: "/investor", label: "Investor View", description: "Внешняя сводка" }
     ]
   },
   {
@@ -49,12 +55,12 @@ const navGroups = [
     href: "/sku",
     aliases: ["/menu", "/ingredients", "/recipes", "/packaging", "/capex", "/opex"],
     links: [
-      { href: "/sku", label: "SKU", description: "Menu items" },
-      { href: "/ingredients", label: "Ingredients", description: "Food costs" },
-      { href: "/recipes", label: "Recipes", description: "Cost build-up" },
-      { href: "/packaging", label: "Packaging", description: "SKU packaging" },
-      { href: "/capex", label: "CAPEX", description: "Opening investment" },
-      { href: "/opex", label: "OPEX", description: "Operating costs" }
+      { href: "/sku", label: "SKU", description: "Позиции меню" },
+      { href: "/ingredients", label: "Ingredients", description: "Закупочные цены" },
+      { href: "/recipes", label: "Recipes", description: "Сборка себестоимости" },
+      { href: "/packaging", label: "Packaging", description: "Упаковка SKU" },
+      { href: "/capex", label: "CAPEX", description: "Opening Investment" },
+      { href: "/opex", label: "OPEX", description: "Операционные расходы" }
     ]
   },
   {
@@ -63,9 +69,9 @@ const navGroups = [
     href: "/audit",
     aliases: ["/checks"],
     links: [
-      { href: "/audit", label: "Model Audit", description: "Grouped issues" },
-      { href: "/audit#data-completeness", label: "Data Completeness", description: "Missing inputs" },
-      { href: "/audit#export-readiness", label: "Export Readiness", description: "Investor blockers" }
+      { href: "/audit", label: "Model Audit", description: "Группировка проблем" },
+      { href: "/audit#data-completeness", label: "Data Completeness", description: "Незаполненные inputs" },
+      { href: "/audit#export-readiness", label: "Export Readiness", description: "Блокеры внешнего показа" }
     ]
   }
 ];
@@ -111,28 +117,25 @@ export function Shell({ children }: { children: React.ReactNode }) {
           <div className="navActions">
             <Link href="/import" onClick={() => setMenuOpen(false)}><FileUp size={15} /> Import</Link>
             <a href="/api/export/full" onClick={() => setMenuOpen(false)}><Download size={15} /> Export XLSX</a>
-            <Link className="investorNavAction" href="/investor" onClick={() => setMenuOpen(false)}><Eye size={15} /> Investor View</Link>
           </div>
         </nav>
-        <div className="subnavShell" aria-label={`${activeGroup.label} navigation`}>
-          <div className="subnavHeader">
-            <span>{activeGroup.label}</span>
-            <strong>{activeGroup.links.length} modules</strong>
+        {activeGroup.links.length > 1 && (
+          <div className="subnavShell" aria-label={`${activeGroup.label} navigation`}>
+            <div className="subnavGrid">
+              {activeGroup.links.map((link) => (
+                <Link
+                  className={isPathActive(link.href) ? "active" : ""}
+                  href={link.href}
+                  key={link.href}
+                  onClick={() => setMenuOpen(false)}
+                >
+                  <span>{link.label}</span>
+                  <small>{link.description}</small>
+                </Link>
+              ))}
+            </div>
           </div>
-          <div className="subnavGrid">
-            {activeGroup.links.map((link) => (
-              <Link
-                className={isPathActive(link.href) ? "active" : ""}
-                href={link.href}
-                key={link.href}
-                onClick={() => setMenuOpen(false)}
-              >
-                <span>{link.label}</span>
-                <small>{link.description}</small>
-              </Link>
-            ))}
-          </div>
-        </div>
+        )}
       </header>
       <main className="main">{children}</main>
     </div>

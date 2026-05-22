@@ -29,11 +29,11 @@ export default function StorePage({ store, tax, model, diagnostics }: any) {
           <Input name="deliveryLogisticsCostPerOrder" label="Логистика / заказ" unit="₽ / заказ" value={store.deliveryLogisticsCostPerOrder} min={0} step={10} help="Переменная стоимость доставки на один delivery-заказ" />
           <Input name="marketingCostPerItem" label="Marketing / SKU" unit="₽ / SKU" value={store.marketingCostPerItem} min={0} step={10} help="Переменный маркетинг на одну проданную позицию" />
           <Input name="loanPaymentsMonthly" label="Loan payments" unit="₽ / мес" value={store.loanPaymentsMonthly} min={0} step={1000} help="Ежемесячные платежи по займам, если есть" />
-          <Input name="ownerWithdrawalsMonthly" label="Owner withdrawals" unit="₽ / мес" value={store.ownerWithdrawalsMonthly} min={0} step={1000} help="Выплаты собственнику, если учитываются в cashflow" />
-          <Input name="revenueTaxRate" label="Revenue tax rate" unit="%" value={tax?.revenueTaxRate ?? ""} min={0} max={100} step={1} help="Налог с выручки. 6 = 6%" />
-          <Input name="profitTaxRate" label="Profit tax rate" unit="%" value={tax?.profitTaxRate ?? ""} min={0} max={100} step={1} help="Налог с прибыли. 20 = 20%" />
-          <Input name="vatRate" label="VAT rate" unit="%" value={tax?.vatRate ?? ""} min={0} max={100} step={1} help="НДС. 20 = 20%. Сейчас справочное поле, не включается в tax paid автоматически" />
-          <Input name="otherTaxes" label="Other taxes" unit="₽ / мес" value={tax?.otherTaxes ?? 0} min={0} step={1000} help="Прочие налоги и обязательные платежи в месяц" />
+          <Input name="ownerWithdrawalsMonthly" label="Owner Withdrawals" unit="₽ / мес" value={store.ownerWithdrawalsMonthly} min={0} step={1000} help="Выплаты собственнику, если учитываются в Cashflow" />
+          <Input name="revenueTaxRate" label="Revenue Tax Rate" unit="%" value={tax?.revenueTaxRate ?? ""} min={0} max={100} step={1} help="Налог с Revenue. 6 = 6%" />
+          <Input name="profitTaxRate" label="Profit Tax Rate" unit="%" value={tax?.profitTaxRate ?? ""} min={0} max={100} step={1} help="Налог с прибыли. 20 = 20%" />
+          <Input name="vatRate" label="VAT Rate" unit="%" value={tax?.vatRate ?? ""} min={0} max={100} step={1} help="НДС. 20 = 20%. Сейчас справочное поле, не включается в Tax Paid автоматически" />
+          <Input name="otherTaxes" label="Other Taxes" unit="₽ / мес" value={tax?.otherTaxes ?? 0} min={0} step={1000} help="Прочие налоги и обязательные платежи в месяц" />
         </div>
         <p className="muted">НДС требует отдельной налоговой логики, сейчас используется как справочное поле или упрощенное допущение.</p>
         <p><button className="primary" type="submit">Сохранить assumptions</button></p>
@@ -41,21 +41,21 @@ export default function StorePage({ store, tax, model, diagnostics }: any) {
       <Diagnostics diagnostics={diagnostics} />
       <section className="band">
         <h2>P&L / Cashflow</h2>
-        <table>
+        <table className="financeTable">
           <tbody>
             <Row label="Revenue" value={rub(model.monthlyRevenue)} />
-            <Row label="Food cost" value={rub(model.foodCostTotal)} />
+            <Row label="Food Cost" value={rub(model.foodCostTotal)} />
             <Row label="Packaging" value={rub(model.packagingTotal)} />
-            <Row label="Gross profit" value={rub(model.grossProfit)} />
-            <Row label="Variable costs" value={rub(model.variableCosts)} />
-            <Row label="Fixed costs" value={rub(model.fixedCosts)} />
-            <Row label="Revenue tax" value={rub(model.revenueTax)} />
-            <Row label="Profit tax" value={rub(model.profitTax)} />
-            <Row label="VAT reference, not in tax paid" value={rub(model.vatReference)} />
+            <Row label="Gross Profit" value={rub(model.grossProfit)} />
+            <Row label="Variable Costs" value={rub(model.variableCosts)} />
+            <Row label="Fixed Costs" value={rub(model.fixedCosts)} />
+            <Row label="Revenue Tax" value={rub(model.revenueTax)} />
+            <Row label="Profit Tax" value={rub(model.profitTax)} />
+            <Row label="VAT reference, not in Tax Paid" value={rub(model.vatReference)} />
             <Row label="EBITDA" value={`${rub(model.ebitda)} / ${percent(model.ebitdaMargin)}`} tone={model.ebitda < 0 ? "negative" : "positive"} />
-            <Row label="Tax paid" value={rub(model.taxPaid)} />
-            <Row label="Operating cashflow" value={rub(model.operatingCashflow)} tone={model.operatingCashflow < 0 ? "negative" : "positive"} />
-            <Row label="Break-even revenue" value={model.breakEvenRevenue == null ? "n/a" : rub(model.breakEvenRevenue)} />
+            <Row label="Tax Paid" value={rub(model.taxPaid)} />
+            <Row label="Operating Cashflow" value={rub(model.operatingCashflow)} tone={model.operatingCashflow < 0 ? "negative" : "positive"} />
+            <Row label="Break-even Revenue" value={model.breakEvenRevenue == null ? `n/a · ${translateBreakEvenReason(model.breakEvenUnavailableReason)}` : rub(model.breakEvenRevenue)} />
             <Row label="Payback" value={model.paybackMonth ? `${model.paybackMonth} мес.` : "n/a"} />
           </tbody>
         </table>
@@ -99,8 +99,17 @@ function Row({ label, value, tone }: { label: string; value: string; tone?: "pos
 function Diagnostics({ diagnostics }: { diagnostics: any[] }) {
   return (
     <section className="band warningPanel">
-      <h2>Почему EBITDA / Cashflow отрицательные</h2>
-      {diagnostics.length ? diagnostics.map((item) => <div className={`check ${item.severity}`} key={item.message}>{item.message}</div>) : <p>Явных причин отрицательных значений сейчас нет. Если модель пустая, заполните Store Inputs, рецептуры, упаковку, OPEX и CAPEX.</p>}
+      <h2>Model Diagnostics</h2>
+      {diagnostics.length ? diagnostics.map((item) => <div className={`check ${item.severity}`} key={item.message}>{item.message}</div>) : <p>Явных критичных причин сейчас нет. Если модель пустая, заполните Store Inputs, Recipes, Packaging, OPEX и CAPEX.</p>}
     </section>
   );
+}
+
+function translateBreakEvenReason(reason?: string | null) {
+  if (!reason) return "Break-even unavailable";
+  if (reason.includes("OPEX missing")) return "Break-even unavailable: OPEX missing";
+  if (reason.includes("Contribution Margin invalid")) return "Break-even unavailable: Contribution Margin invalid";
+  if (reason.includes("Average Check missing")) return "Break-even unavailable: Average Check missing";
+  if (reason.includes("Working Days missing")) return "Break-even unavailable: Working Days missing";
+  return reason;
 }

@@ -225,11 +225,13 @@ export type StoreModelResult = {
   taxPaid: number;
   operatingCashflow: number;
   initialInvestment: number;
+  contributionMarginPercent: number;
   paybackMonth: number | null;
   roi: number | null;
   breakEvenRevenue: number | null;
   breakEvenOrders: number | null;
   breakEvenOrdersPerDay: number | null;
+  breakEvenUnavailableReason: string | null;
   monthlyDepreciation: number;
   cumulativeCashflow: Array<{ month: number; netCashflow: number; cumulativeCashflow: number }>;
 };

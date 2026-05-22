@@ -52,6 +52,7 @@ body::before {
 a { color: inherit; text-decoration: none; }
 table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 14px; overflow: hidden; }
 th, td { padding: 12px 11px; border-bottom: 1px solid rgba(255,255,255,.07); text-align: left; vertical-align: middle; }
+th, td { font-variant-numeric: tabular-nums; }
 th {
   position: sticky;
   top: 0;
@@ -61,6 +62,15 @@ th {
   background: rgba(255,255,255,.075);
   white-space: nowrap;
   backdrop-filter: var(--glass-blur);
+}
+td:not(:first-child):not([colspan]),
+th:not(:first-child) {
+  white-space: nowrap;
+}
+td:first-child,
+th:first-child,
+.stickyCol {
+  text-align: left;
 }
 tr:last-child td { border-bottom: 0; }
 tbody tr:hover td { background: rgba(255,255,255,.035); }
@@ -183,7 +193,7 @@ button.danger, .button.danger { background: rgba(200,107,90,.16); border-color: 
   margin: 0 auto;
   padding: 0 22px 14px;
   display: grid;
-  grid-template-columns: 180px minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr);
   gap: 14px;
   align-items: stretch;
 }
@@ -311,10 +321,28 @@ button.danger, .button.danger { background: rgba(200,107,90,.16); border-color: 
 }
 .metric:hover { transform: translateY(-2px); border-color: rgba(214,181,109,.30); background: linear-gradient(180deg, rgba(255,255,255,.11), rgba(255,255,255,.045)); }
 .metric span { color: var(--text-secondary); font-size: 12px; font-weight: 850; text-transform: uppercase; letter-spacing: .055em; position: relative; z-index: 1; }
-.metric strong { font-size: 26px; letter-spacing: 0; color: var(--text); overflow-wrap: anywhere; line-height: 1.12; font-variant-numeric: tabular-nums; position: relative; z-index: 1; }
+.metric strong { font-size: 26px; letter-spacing: 0; color: var(--text); overflow-wrap: normal; white-space: nowrap; line-height: 1.12; font-variant-numeric: tabular-nums; position: relative; z-index: 1; }
 .mainKpis .metric { min-height: 142px; }
 .mainKpis .metric strong { font-size: clamp(30px, 3vw, 43px); color: var(--champagne); }
 .metric small { color: var(--text-muted); font-weight: 800; position: relative; z-index: 1; }
+.metricSubtext { color: #F0C987 !important; line-height: 1.35; white-space: normal; }
+.draftBadge {
+  position: relative;
+  z-index: 1;
+  justify-self: start;
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  border: 1px solid rgba(217,154,61,.32);
+  border-radius: 999px;
+  padding: 3px 9px;
+  background: rgba(217,154,61,.14);
+  color: #F0C987;
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 950;
+  white-space: nowrap;
+}
 
 .band {
   background: linear-gradient(180deg, rgba(255,255,255,.075), rgba(255,255,255,.035));
@@ -347,6 +375,8 @@ button.danger, .button.danger { background: rgba(200,107,90,.16); border-color: 
 .check.warning { background: rgba(217,154,61,.12); border-color: rgba(217,154,61,.34); color: #F0C987; }
 .check.critical { background: var(--red-soft); border-color: rgba(200,107,90,.38); color: #F0A99C; }
 .warningPanel { background: linear-gradient(180deg, rgba(217,154,61,.13), rgba(255,255,255,.035)); border-color: rgba(217,154,61,.30); }
+.successPanelSoft { background: linear-gradient(180deg, rgba(127,176,105,.12), rgba(255,255,255,.035)); border-color: rgba(127,176,105,.26); }
+.diagnosticLead { margin: 0 0 14px; color: var(--text-secondary); line-height: 1.55; max-width: 920px; }
 
 .status, .pill { display: inline-flex; align-items: center; border-radius: 999px; padding: 4px 10px; font-size: 12px; font-weight: 900; white-space: nowrap; }
 .status.good { background: rgba(127,176,105,.14); color: #B7D9A8; border: 1px solid rgba(127,176,105,.24); }
@@ -375,7 +405,7 @@ button.danger, .button.danger { background: rgba(200,107,90,.16); border-color: 
   background: rgba(0,0,0,.14);
 }
 .skuTable { min-width: 1120px; }
-.stickyCol { position: sticky; left: 0; z-index: 3; min-width: 220px; max-width: 300px; background: rgba(18,17,15,.92); box-shadow: 1px 0 0 var(--border); }
+.stickyCol { position: sticky; left: 0; z-index: 3; width: 240px; min-width: 220px; max-width: 300px; background: rgba(18,17,15,.92); box-shadow: 1px 0 0 var(--border); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 th.stickyCol { z-index: 5; background: rgba(255,255,255,.08); }
 .stickyAction { position: sticky; right: 0; z-index: 3; min-width: 132px; background: rgba(18,17,15,.92); box-shadow: -1px 0 0 var(--border); }
 th.stickyAction { z-index: 5; background: rgba(255,255,255,.08); }
@@ -383,8 +413,20 @@ th.stickyAction { z-index: 5; background: rgba(255,255,255,.08); }
 .iconButton { min-width: 34px; min-height: 34px; width: 34px; height: 34px; padding: 0; border-radius: 10px; }
 .dangerText { color: var(--red); }
 .priceInput { width: 86px; padding: 7px 9px; text-align: right; font-weight: 850; }
+.badgeSelect { border-radius: 999px; font-weight: 900; padding: 8px 12px; }
 .skuLink { font-weight: 900; color: var(--champagne); }
 .inactiveRow { opacity: .55; }
+.skuName { display: block; max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.moneyCell,
+.percentCell,
+.numCell,
+.deltaCell,
+.valueCell {
+  text-align: right;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.textCell { text-align: left !important; white-space: normal; }
 
 .segmented { display: inline-flex; gap: 4px; padding: 4px; border: 1px solid var(--border); border-radius: 12px; background: rgba(255,255,255,.045); }
 .segmented.wrap { flex-wrap: wrap; margin-bottom: 18px; }
@@ -420,13 +462,81 @@ th.stickyAction { z-index: 5; background: rgba(255,255,255,.08); }
 .chartPanel { min-width: 0; }
 .chartPanel h3, .breakdown h3, .checks h3 { margin: 0 0 12px; color: var(--champagne); font-size: 16px; }
 .financeTableWrap { margin-top: 18px; }
-.financeTable td:nth-child(2), .financeTable td:nth-child(3), .financeTable th:nth-child(2), .financeTable th:nth-child(3) { text-align: right; white-space: nowrap; }
+.financeTable td:not(:first-child), .financeTable th:not(:first-child) { text-align: right; white-space: nowrap; }
 .financeTable .subtotalRow td { background: rgba(214,181,109,.08); font-weight: 900; }
 .financeTable .totalRow td, .cashflowTable .totalRow td { background: rgba(255,255,255,.075); font-weight: 950; color: var(--champagne); }
 .financeTable .marginRow td { color: var(--text-secondary); font-weight: 850; }
 .cashflowTable { min-width: 1040px; }
 .cashflowTable td:not(:first-child), .cashflowTable th:not(:first-child) { text-align: right; white-space: nowrap; }
 .cashflowTableWrap { max-height: 390px; }
+.skuTable td:not(.stickyCol):not(.stickyAction):nth-child(n+3),
+.skuTable th:not(.stickyCol):not(.stickyAction):nth-child(n+3) {
+  text-align: right;
+  white-space: nowrap;
+}
+.forecastControls {
+  display: grid;
+  grid-template-columns: auto auto minmax(190px, 1fr) minmax(160px, .7fr);
+  gap: 14px;
+  align-items: end;
+}
+.forecastKpis { grid-template-columns: repeat(5, minmax(160px, 1fr)); }
+.forecastTable { min-width: 1320px; }
+.forecastTable td:nth-child(2),
+.forecastTable th:nth-child(2) {
+  text-align: left;
+}
+.forecastTable td,
+.forecastTable th {
+  white-space: nowrap;
+}
+.forecastInput {
+  width: 118px;
+  padding: 7px 9px;
+  text-align: right;
+  font-weight: 850;
+}
+.bulkEditGrid {
+  display: grid;
+  grid-template-columns: minmax(170px, 1fr) repeat(3, minmax(140px, .8fr)) auto auto;
+  gap: 12px;
+  align-items: end;
+}
+.bulkEditGrid .checkLine { min-height: 40px; align-self: end; }
+.tableToolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+.columnSettings {
+  margin-bottom: 12px;
+  color: var(--text-secondary);
+  font-weight: 850;
+}
+.columnSettings summary {
+  cursor: pointer;
+  color: var(--champagne);
+  width: fit-content;
+}
+.columnSettings > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 16px;
+  padding-top: 10px;
+}
+.sensitivityTable { min-width: 1580px; }
+.sensitivityTable td:not(:first-child),
+.sensitivityTable th:not(:first-child) {
+  text-align: right;
+  white-space: nowrap;
+}
+.sensitivityTable td:last-child,
+.sensitivityTable th:last-child {
+  text-align: left;
+}
 .warningBlock { margin-bottom: 18px; }
 .progressGrid { display: grid; gap: 12px; }
 .progressCard { display: grid; gap: 8px; padding: 12px; border: 1px solid var(--border); border-radius: 12px; background: rgba(255,255,255,.04); }
@@ -463,10 +573,6 @@ th.stickyAction { z-index: 5; background: rgba(255,255,255,.08); }
 .recharts-tooltip-label { color: var(--champagne) !important; }
 .recharts-tooltip-item { color: var(--text) !important; }
 
-@media (max-width: 1180px) {
-  .investorNavAction { display: none !important; }
-}
-
 @media (max-width: 1050px) {
   .pageHeader, .heroContent { grid-template-columns: 1fr; flex-direction: column; }
   .heroControls { justify-items: start; min-width: 0; }
@@ -479,6 +585,9 @@ th.stickyAction { z-index: 5; background: rgba(255,255,255,.08); }
   .franchiseMetrics, .compactMetrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .sectionNav { position: static; }
   .summaryGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .forecastControls { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .forecastKpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .bulkEditGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .subnavShell { grid-template-columns: 1fr; }
   .subnavHeader { display: none; }
   .subnavGrid { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
@@ -521,13 +630,14 @@ th.stickyAction { z-index: 5; background: rgba(255,255,255,.08); }
   .navShell.open .subnavGrid {
     grid-template-columns: 1fr;
   }
-  .investorNavAction { display: inline-flex !important; }
 }
 
 @media (max-width: 680px) {
   .main { padding: 22px 14px 42px; }
   .heroPanel { padding: 20px; border-radius: 18px; }
   .mainKpis, .secondaryKpis, .metrics, .summaryGrid { grid-template-columns: 1fr; }
+  .forecastControls { grid-template-columns: 1fr; }
+  .bulkEditGrid { grid-template-columns: 1fr; }
   .metric strong { font-size: 24px; }
   .mainKpis .metric strong { font-size: 32px; }
   .navShell.open .navMain,

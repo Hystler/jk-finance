@@ -92,11 +92,13 @@ function makeStoreModelResult(overrides: Partial<StoreModelResult> = {}): StoreM
     taxPaid: overrides.taxPaid ?? 0,
     operatingCashflow: overrides.operatingCashflow ?? (overrides.ebitda ?? ebitda),
     initialInvestment: overrides.initialInvestment ?? 0,
+    contributionMarginPercent: overrides.contributionMarginPercent ?? ((monthlyRevenue - foodCostTotal - packagingTotal - variableCosts) / monthlyRevenue),
     paybackMonth: overrides.paybackMonth ?? null,
     roi: overrides.roi ?? null,
     breakEvenRevenue: overrides.breakEvenRevenue ?? null,
     breakEvenOrders: overrides.breakEvenOrders ?? null,
     breakEvenOrdersPerDay: overrides.breakEvenOrdersPerDay ?? null,
+    breakEvenUnavailableReason: overrides.breakEvenUnavailableReason ?? null,
     monthlyDepreciation: overrides.monthlyDepreciation ?? 0,
     cumulativeCashflow: overrides.cumulativeCashflow ?? []
   };
@@ -214,7 +216,7 @@ describe("financial calculations", () => {
 
   it("builds sensitivity scenarios", () => {
     const rows = calculateSensitivity([product], store, [], [], { revenueTaxRate: 6 });
-    expect(rows.some((row) => row.parameter === "Average check")).toBe(true);
+    expect(rows.some((row) => row.parameter === "Average Check")).toBe(true);
     expect(rows[0].values.Base).not.toBeNull();
   });
 
@@ -239,9 +241,29 @@ describe("financial calculations", () => {
       [{ category: "CAPEX", amount: 1_000_000, usefulLifeMonths: 36, paidBeforeOpening: true }],
       { revenueTaxRate: 6 }
     );
-    const taxRate = rows.find((row) => row.parameter === "Tax rate");
+    const taxRate = rows.find((row) => row.parameter === "Tax Rate");
     expect(taxRate?.ebitdaDelta).toBe(0);
     expect(taxRate?.netCashflowDelta).toBeLessThan(0);
+  });
+
+  it("applies rent, payroll and aggregator sensitivity to EBITDA and cashflow", () => {
+    const rows = calculateSensitivity(
+      [product],
+      store,
+      [
+        { category: "Аренда помещения", amount: 100_000, behavior: "FIXED", driver: "FIXED" },
+        { category: "Фонд оплаты труда", amount: 180_000, behavior: "FIXED", driver: "FIXED" }
+      ],
+      [{ category: "CAPEX", amount: 1_000_000, usefulLifeMonths: 36, paidBeforeOpening: true }],
+      { revenueTaxRate: 6 }
+    );
+    for (const parameter of ["Rent", "Payroll", "Aggregator Commission"]) {
+      const row = rows.find((item) => item.parameter === parameter);
+      expect(row?.ebitdaDelta).toBeLessThan(0);
+      expect(row?.netCashflowDelta).toBeLessThan(0);
+      expect(row?.roiDelta).toBeLessThan(0);
+      expect(row?.breakEvenDelta).not.toBeNull();
+    }
   });
 
   it("converts percent inputs to decimals", () => {
@@ -666,7 +688,7 @@ describe("financial calculations", () => {
 
   it("main dashboard contains KPI cards and chart sections", () => {
     const dashboard = readFileSync("src/pages/index.tsx", "utf8");
-    expect(dashboard).toContain("Monthly revenue");
+    expect(dashboard).toContain("Monthly Revenue");
     expect(dashboard).toContain("Franchise payback preview");
     expect(dashboard).toContain("Data completeness");
   });

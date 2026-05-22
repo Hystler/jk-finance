@@ -20,25 +20,25 @@ export default function FranchisorPage({ franchise, franchisor }: any) {
       <div className="pageHeader">
         <div>
           <h1>Franchisor Economics</h1>
-          <p>Royalty, marketing fee, supply markup, support cost and HQ economics for the franchise network.</p>
+          <p>Royalty, Marketing Fee, Supply Markup, Support Cost и HQ economics для сети франшизы.</p>
         </div>
-        <div className="actions"><Link className="button" href="/franchise">Edit Franchise Mode</Link></div>
+        <div className="actions"><Link className="button" href="/franchise">Открыть Franchise Overview</Link></div>
       </div>
       <div className="metrics">
-        <Metric title="Initial franchise fee" value={rub(franchisor.lumpSumFee)} />
-        <Metric title="Royalty revenue" value={rub(franchisor.royalty)} />
-        <Metric title="Marketing fee revenue" value={rub(franchisor.marketingFee)} />
-        <Metric title="Supply markup" value={rub(franchisor.supplyChainMarkupRevenue)} />
-        <Metric title="Support cost / franchisee" value={rub(franchisor.supportCostPerFranchisee)} />
-        <Metric title="Fixed HQ costs" value={rub(franchise.franchisorFixedTeamCosts)} />
+        <Metric title="Initial Franchise Fee" value={rub(franchisor.lumpSumFee)} />
+        <Metric title="Royalty Revenue" value={rub(franchisor.royalty)} />
+        <Metric title="Marketing Fee Revenue" value={rub(franchisor.marketingFee)} />
+        <Metric title="Supply Markup" value={rub(franchisor.supplyChainMarkupRevenue)} />
+        <Metric title="Support Cost / Franchisee" value={rub(franchisor.supportCostPerFranchisee)} />
+        <Metric title="Fixed HQ Costs" value={rub(franchise.franchisorFixedTeamCosts)} />
         <Metric title="Franchisor EBITDA" value={rub(franchisor.ebitda)} />
-        <Metric title="EBITDA margin" value={percent(franchisor.ebitdaMargin)} />
+        <Metric title="EBITDA Margin" value={percent(franchisor.ebitdaMargin)} />
       </div>
       <section className="band">
         <h2>Profit by network size</h2>
         <div className="tableScroll">
-          <table>
-            <thead><tr><th>Locations</th><th>Monthly revenue</th><th>Monthly EBITDA</th><th>Annual EBITDA</th></tr></thead>
+          <table className="financeTable">
+            <thead><tr><th>Locations</th><th>Monthly Revenue</th><th>Monthly EBITDA</th><th>Annual EBITDA</th></tr></thead>
             <tbody>
               {networkRows.map((row) => (
                 <tr key={row.locations}>
@@ -54,7 +54,7 @@ export default function FranchisorPage({ franchise, franchisor }: any) {
       </section>
       <section className="band">
         <h2>Revenue bridge per franchisee</h2>
-        <table>
+        <table className="financeTable">
           <tbody>
             <Row label="Royalty" value={rub(franchisor.royalty)} />
             <Row label="Marketing fee" value={rub(franchisor.marketingFee)} />

@@ -36,7 +36,7 @@ export default function UnitEconomicsPage({ model, store, economics }: any) {
       <div className="pageHeader">
         <div>
           <h1>Unit Economics</h1>
-          <p>Read-only unit economics на один заказ и на SKU. Ввод находится в Store Model, SKU, Recipes и Packaging.</p>
+          <p>Экономика одного заказа и каждого SKU. Ввод данных находится в Store Model, SKU, Recipes и Packaging.</p>
         </div>
       </div>
       <div className="metrics">
@@ -45,10 +45,10 @@ export default function UnitEconomicsPage({ model, store, economics }: any) {
       <section className="band">
         <div className="sectionHead">
           <h2>SKU contribution</h2>
-          <span>{num(skuRows.length, 0)} SKU with price</span>
+          <span>{num(skuRows.length, 0)} SKU с ценой</span>
         </div>
         <div className="tableScroll">
-          <table className="skuTable">
+          <table className="skuTable financeTable">
             <thead>
               <tr>
                 <th>SKU</th>
@@ -75,7 +75,7 @@ export default function UnitEconomicsPage({ model, store, economics }: any) {
                   <td>{rub(row.deliveryLogisticsPerItem)}</td>
                   <td className={row.contributionMargin < 0 ? "negative" : "positive"}>{rub(row.contributionMargin)}</td>
                   <td className={row.contributionMarginPercent < 0 ? "negative" : "positive"}>{percent(row.contributionMarginPercent)}</td>
-                  <td><span className={`status ${String(row.status).replace(/\s+/g, "-")}`}>{row.status}</span></td>
+                  <td><span className={`status ${String(row.status).replace(/\s+/g, "-")}`}>{translateStatus(row.status)}</span></td>
                 </tr>
               ))}
               {!skuRows.length && <tr><td colSpan={10}>SKU еще не заполнены.</td></tr>}
@@ -89,4 +89,19 @@ export default function UnitEconomicsPage({ model, store, economics }: any) {
 
 function Metric({ title, value }: { title: string; value: string }) {
   return <div className="metric"><span>{title}</span><strong>{value}</strong></div>;
+}
+
+function translateStatus(status: string) {
+  const labels: Record<string, string> = {
+    good: "Готово",
+    warning: "Требуется проверка",
+    bad: "Ошибка данных",
+    "missing recipe": "Нет рецептуры",
+    "missing packaging": "Нет упаковки",
+    "negative contribution": "Отрицательная маржа",
+    "negative EBITDA": "Отрицательная EBITDA",
+    "high food cost": "Высокий Food Cost",
+    "low margin": "Низкая маржа"
+  };
+  return labels[status] ?? status;
 }

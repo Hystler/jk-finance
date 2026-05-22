@@ -46,7 +46,8 @@ export async function getServerSideProps() {
       netCashflow: model.operatingCashflow,
       payback: model.paybackMonth,
       roi: model.roi,
-      breakEvenOrdersPerDay: model.breakEvenOrdersPerDay
+      breakEvenOrdersPerDay: model.breakEvenOrdersPerDay,
+      breakEvenReason: model.breakEvenUnavailableReason
     };
   });
   return { props: { rows } };
@@ -58,7 +59,7 @@ export default function ScenarioBuilderPage({ rows }: any) {
       <div className="pageHeader">
         <div>
           <h1>Scenario Builder</h1>
-          <p>Read-only scenario matrix for fast-food franchise assumptions. Scenarios are calculated on the fly and do not overwrite the base model.</p>
+          <p>Матрица сценариев для franchise assumptions. Сценарии рассчитываются на лету и не перезаписывают base model.</p>
         </div>
       </div>
       <section className="band">
@@ -69,8 +70,8 @@ export default function ScenarioBuilderPage({ rows }: any) {
                 <th>Scenario</th>
                 <th>Revenue</th>
                 <th>EBITDA</th>
-                <th>EBITDA margin</th>
-                <th>Net cashflow</th>
+                <th>EBITDA Margin</th>
+                <th>Net Cashflow</th>
                 <th>Payback</th>
                 <th>ROI</th>
                 <th>Break-even orders/day</th>
@@ -86,7 +87,7 @@ export default function ScenarioBuilderPage({ rows }: any) {
                   <td className={row.netCashflow < 0 ? "negative" : "positive"}>{rub(row.netCashflow)}</td>
                   <td>{row.payback == null ? "n/a" : `${row.payback} мес.`}</td>
                   <td>{row.roi == null ? "n/a" : percent(row.roi)}</td>
-                  <td>{row.breakEvenOrdersPerDay == null ? "n/a" : num(row.breakEvenOrdersPerDay, 1)}</td>
+                  <td>{row.breakEvenOrdersPerDay == null ? translateBreakEvenReason(row.breakEvenReason) : num(row.breakEvenOrdersPerDay, 1)}</td>
                 </tr>
               ))}
             </tbody>
@@ -204,4 +205,13 @@ function emptyStore(): StoreInputs {
     loanPaymentsMonthly: 0,
     workingCapitalChangeMonthly: 0
   };
+}
+
+function translateBreakEvenReason(reason?: string | null) {
+  if (!reason) return "n/a";
+  if (reason.includes("OPEX missing")) return "Break-even unavailable: OPEX missing";
+  if (reason.includes("Contribution Margin invalid")) return "Break-even unavailable: Contribution Margin invalid";
+  if (reason.includes("Average Check missing")) return "Break-even unavailable: Average Check missing";
+  if (reason.includes("Working Days missing")) return "Break-even unavailable: Working Days missing";
+  return reason;
 }

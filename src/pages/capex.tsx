@@ -46,15 +46,15 @@ export default function CapexPage({ rows: initialRows }: any) {
         <Input name="category" label="Статья" unit="" help="Например: кухонное оборудование" />
         <Input name="amount" label="Сумма" unit="₽" help="Сумма CAPEX" />
         <Input name="usefulLifeMonths" label="Срок амортизации" unit="мес" help="Например: 36" />
-        <Input name="supplierComment" label="Supplier/comment" unit="" help="Поставщик или комментарий" />
-        <label>Required<select name="required" defaultValue="true"><option value="true">yes</option><option value="false">no</option></select></label>
-        <label>Paid before opening<select name="paidBeforeOpening" defaultValue="true"><option value="true">yes</option><option value="false">no</option></select></label>
+        <Input name="supplierComment" label="Поставщик / комментарий" unit="" help="Поставщик или комментарий" />
+        <label>Обязательность<select className="badgeSelect" name="required" defaultValue="true"><option value="true">Обязательный</option><option value="false">Необязательный</option></select></label>
+        <label>Оплата<select className="badgeSelect" name="paidBeforeOpening" defaultValue="true"><option value="true">До открытия</option><option value="false">После открытия</option></select></label>
         <button className="primary" type="submit">Добавить CAPEX</button>
       </form>
       <section className="band">
-        <h2>Opening investment: {rub(totals.initialInvestment)} · Monthly depreciation: {rub(totals.monthlyDepreciation)}</h2>
+        <h2>Инвестиции открытия: {rub(totals.initialInvestment)} · Амортизация / мес: {rub(totals.monthlyDepreciation)}</h2>
         <table>
-          <thead><tr><th>Статья</th><th>Сумма</th><th>Амортизация</th><th>Комментарий</th><th>Required</th><th>Paid before opening</th><th>Действия</th></tr></thead>
+          <thead><tr><th>Статья</th><th>Сумма</th><th>Амортизация</th><th>Комментарий</th><th>Обязательность</th><th>Оплата</th><th>Действия</th></tr></thead>
           <tbody>
             {rows.map((row) => (
               <tr key={row.id}>
@@ -64,8 +64,8 @@ export default function CapexPage({ rows: initialRows }: any) {
                     <input name="amount" defaultValue={row.amount} type="number" min="0" step="10000" aria-label="Сумма" />
                     <input name="usefulLifeMonths" defaultValue={row.usefulLifeMonths ?? ""} type="number" min="1" step="1" aria-label="Срок амортизации" />
                     <input name="supplierComment" defaultValue={row.supplierComment ?? ""} aria-label="Комментарий" />
-                    <select name="required" defaultValue={String(row.required)}><option value="true">yes</option><option value="false">no</option></select>
-                    <select name="paidBeforeOpening" defaultValue={String(row.paidBeforeOpening)}><option value="true">yes</option><option value="false">no</option></select>
+                    <select className="badgeSelect" name="required" defaultValue={String(row.required)}><option value="true">Обязательный</option><option value="false">Необязательный</option></select>
+                    <select className="badgeSelect" name="paidBeforeOpening" defaultValue={String(row.paidBeforeOpening)}><option value="true">До открытия</option><option value="false">После открытия</option></select>
                     <div className="rowActions">
                       <button type="submit">Сохранить</button>
                       <button type="button" className="danger" onClick={() => remove(row.id)}><Trash2 size={15} /> Удалить</button>

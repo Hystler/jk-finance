@@ -104,7 +104,7 @@ export default function SkuDetail({ product, modelProduct, economics, ingredient
         <div>
           <h1>{product.name}</h1>
           <p>{product.category} · {rub(product.salePrice)} · source: {product.source} · <Link href="/menu">назад к SKU</Link></p>
-          <div className="badgeRow"><span className={`status ${statusClass(economics.status)}`}>{economics.status}</span>{!product.isActive && <span className="pill warningPill">выключен</span>}</div>
+          <div className="badgeRow"><span className={`status ${statusClass(economics.status)}`}>{translateStatus(economics.status)}</span>{!product.isActive && <span className="pill warningPill">выключен</span>}</div>
         </div>
         <div className="actions">
           <button onClick={() => setSkuEditor(product)}><Edit3 size={16} /> Редактировать</button>
@@ -114,13 +114,13 @@ export default function SkuDetail({ product, modelProduct, economics, ingredient
 
       <div className="metrics">
         <Metric title="Price" value={rub(economics.salePrice)} />
-        <Metric title="Ingredient cost" value={rub(economics.ingredientCost)} />
+        <Metric title="Ingredient Cost" value={rub(economics.ingredientCost)} />
         <Metric title="Packaging" value={rub(economics.packagingCost)} />
-        <Metric title="Gross profit" value={rub(economics.grossProfit)} />
+        <Metric title="Gross Profit" value={rub(economics.grossProfit)} />
         <Metric title="Contribution" value={rub(economics.contributionMargin)} />
         <Metric title="EBITDA/item" value={rub(economics.ebitdaPerItem)} />
-        <Metric title="EBITDA margin" value={percent(economics.ebitdaMarginPercent)} />
-        <Metric title="Total cost/item" value={rub(economics.totalCostPerItem)} />
+        <Metric title="EBITDA Margin" value={percent(economics.ebitdaMarginPercent)} />
+        <Metric title="Total Cost/item" value={rub(economics.totalCostPerItem)} />
       </div>
 
       <div className="twoCol">
@@ -180,7 +180,7 @@ export default function SkuDetail({ product, modelProduct, economics, ingredient
                   </tr>
                 );
               })}
-              {!modelProduct.recipes.length && <tr><td colSpan={8}>Нет рецептуры. Добавьте ингредиенты вручную, чтобы убрать статус missing recipe.</td></tr>}
+              {!modelProduct.recipes.length && <tr><td colSpan={8}>Нет рецептуры. Добавьте ингредиенты вручную, чтобы убрать статус “Нет рецептуры”.</td></tr>}
             </tbody>
           </table>
         </div>
@@ -210,7 +210,7 @@ export default function SkuDetail({ product, modelProduct, economics, ingredient
                   </td>
                 </tr>
               ))}
-              {!product.packagingLinks.length && <tr><td colSpan={6}>Нет упаковки. Добавьте упаковку, чтобы убрать warning.</td></tr>}
+              {!product.packagingLinks.length && <tr><td colSpan={6}>Нет упаковки. Добавьте упаковку, чтобы убрать предупреждение.</td></tr>}
             </tbody>
           </table>
         </div>
@@ -287,6 +287,21 @@ function Metric({ title, value }: { title: string; value: string }) {
 
 function Row({ label, value, strong }: { label: string; value: string; strong?: boolean }) {
   return <div className={strong ? "breakdownRow strong" : "breakdownRow"}><span>{label}</span><b>{value}</b></div>;
+}
+
+function translateStatus(status: string) {
+  const labels: Record<string, string> = {
+    good: "Готово",
+    warning: "Требуется проверка",
+    bad: "Ошибка данных",
+    "missing recipe": "Нет рецептуры",
+    "missing packaging": "Нет упаковки",
+    "negative contribution": "Отрицательная маржа",
+    "negative EBITDA": "Отрицательная EBITDA",
+    "high food cost": "Высокий Food Cost",
+    "low margin": "Низкая маржа"
+  };
+  return labels[status] ?? status;
 }
 
 function Editor({ title, children, onClose, onSave }: any) {

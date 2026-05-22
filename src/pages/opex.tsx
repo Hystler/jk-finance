@@ -34,7 +34,7 @@ export default function OpexPage({ rows: initialRows }: any) {
 
   return (
     <Shell>
-      <div className="pageHeader"><div><h1>OPEX</h1><p>Ежемесячные расходы: fixed или variable, с драйвером revenue/orders/items/fixed.</p></div></div>
+      <div className="pageHeader"><div><h1>OPEX</h1><p>Ежемесячные расходы: Fixed или Variable, с драйвером Revenue, Orders, Items или Fixed.</p></div></div>
       <form className="band gridForm" method="post" action="/api/opex">
         <Input name="category" label="Статья" help="Например: аренда, ФОТ, коммунальные" />
         <Input name="amount" label="Сумма или ставка" help="₽ / мес, ₽ / заказ, ₽ / SKU или % для LINKED_TO_REVENUE" />

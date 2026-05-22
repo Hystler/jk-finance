@@ -36,7 +36,7 @@ export default function PnlPage({ model, opex }: any) {
       <div className="pageHeader">
         <div>
           <h1>P&L</h1>
-          <p>Read-only P&L bridge от выручки к EBITDA и operating cashflow. OPEX buckets собираются из текущих категорий справочника OPEX.</p>
+          <p>P&L bridge от Revenue к EBITDA и Operating Cashflow. OPEX buckets собираются из текущих категорий справочника OPEX.</p>
         </div>
       </div>
       <div className="metrics">

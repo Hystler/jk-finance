@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Shell } from "@/pages/index";
 import { loadModel } from "@/lib/model";
+import { calculateModelReadiness } from "@/lib/readiness";
 
 const groupNames = [
   "All",
@@ -18,10 +19,23 @@ const groupNames = [
 
 export async function getServerSideProps() {
   const data = await loadModel();
+  const readiness = calculateModelReadiness({
+    products: data.products,
+    economics: data.economics,
+    capex: data.capex,
+    opex: data.opex,
+    store: data.store,
+    model: data.model,
+    checks: data.checks,
+    franchiseMissingWarnings: data.franchiseModel.missingDataWarnings
+  });
   const checks = [
     ...data.checks.map((check) => ({ ...check, source: "Store Model" })),
     ...data.franchiseModel.checks.map((check: any) => ({ ...check, category: "Franchise", source: "Franchise" })),
-    ...data.franchiseModel.missingDataWarnings.map((message: string) => ({ severity: "warning", code: "FRANCHISE_MISSING_DATA", message, category: "Franchise", source: "Franchise" }))
+    ...data.franchiseModel.missingDataWarnings.map((message: string) => ({ severity: "warning", code: "FRANCHISE_MISSING_DATA", message, category: "Franchise", source: "Franchise" })),
+    ...(!readiness.isInvestorReady && readiness.investorWarning
+      ? [{ severity: "warning", code: "MODEL_READINESS_BELOW_80", message: `${readiness.investorWarning} Model Readiness: ${readiness.score}%.`, category: "Investor readiness", source: "Readiness guard" }]
+      : [])
   ];
   return { props: { checks } };
 }
@@ -37,7 +51,7 @@ export default function AuditPage({ checks }: any) {
       <div className="pageHeader">
         <div>
           <h1>Audit</h1>
-          <p>Grouped model checks for data completeness, calculation consistency, SKU margin, export readiness and investor readiness.</p>
+          <p>Группировка проверок по Data Completeness, Calculation Consistency, SKU margin, Export Readiness и Investor Readiness.</p>
         </div>
       </div>
       <div className="metrics">
@@ -56,7 +70,7 @@ export default function AuditPage({ checks }: any) {
         <div className="auditGroups">
           {visibleGroups.map((group) => (
             <div className="auditGroup" id={groupId(group.name)} key={group.name}>
-              <div className="sectionHead"><h2>{group.name}</h2><span>{group.items.length} unique issue(s)</span></div>
+              <div className="sectionHead"><h2>{group.name}</h2><span>{group.items.length} уникальных проблем</span></div>
               <div className="checks">
                 {group.items.map((item) => (
                   <div className={`check ${item.severity}`} key={`${group.name}-${item.code}-${item.message}`}>
@@ -66,7 +80,7 @@ export default function AuditPage({ checks }: any) {
                     {item.count > 1 && <span className="pill">{item.count} похожих</span>}
                   </div>
                 ))}
-                {!group.items.length && <div className="check info">No issues in this group.</div>}
+                {!group.items.length && <div className="check info">В этой группе проблем не найдено.</div>}
               </div>
             </div>
           ))}
