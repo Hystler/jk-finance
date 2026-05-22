@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { AlertTriangle, Download, FileUp, Gauge, PackagePlus, Plus, Table2, Wheat } from "lucide-react";
+import { AlertTriangle, Download, FileUp } from "lucide-react";
 import {
   Bar,
   BarChart,
@@ -19,6 +19,9 @@ import {
 import { loadModel } from "@/lib/model";
 import { truncateSkuName } from "@/lib/charts";
 import { num, percent, rub } from "@/lib/format";
+import { Shell } from "@/components/Shell";
+
+export { Shell } from "@/components/Shell";
 
 export async function getServerSideProps() {
   const data = await loadModel();
@@ -96,13 +99,14 @@ export default function Dashboard({ summary, checks, diagnostics, economics, sen
       franchiseModel.franchise.franchiseRent + franchiseModel.franchise.franchisePayroll + franchiseModel.franchise.franchiseOtherFixedOpex
     ].filter((value: number) => value > 0).length, total: 5 }
   ];
+  const readiness = calculateReadiness(completeness, checks, summary);
 
   return (
     <Shell>
       <div className="pageHeader">
         <div>
-          <h1>Жуй Кайфуй: финансовая модель MVP</h1>
-          <p>Все неизвестные финансовые значения остаются editable assumptions. Публичное меню импортируется отдельно от расчетов.</p>
+          <h1>Executive Dashboard</h1>
+          <p>Read-only summary текущей финансовой модели фастфуд-франшизы: KPI, readiness, cashflow, SKU risks и franchise preview. Ввод данных вынесен в разделы Model и Data.</p>
         </div>
         <div className="actions">
           <Link className="button" href="/import"><FileUp size={16} /> Импорт</Link>
@@ -119,25 +123,39 @@ export default function Dashboard({ summary, checks, diagnostics, economics, sen
         <Metric title="Opening investment" value={rub(summary.initialInvestment)} />
         <Metric title="Payback" value={summary.paybackMonth ? `${summary.paybackMonth} мес.` : "n/a"} />
         <Metric title="Break-even / день" value={summary.breakEvenOrdersPerDay == null ? "n/a" : `${Math.ceil(summary.breakEvenOrdersPerDay)} заказов`} />
-        <Metric title="Active SKU count" value={num(activeSkuCount, 0)} />
-        <Metric title="SKU with missing recipe" value={num(missingRecipeCount, 0)} />
-        <Metric title="SKU with negative EBITDA" value={num(negativeEbitdaCount, 0)} />
         <Metric title="ROI" value={summary.roi == null ? "n/a" : percent(summary.roi)} />
+        <Metric title="Model Readiness" value={`${readiness.score}%`} />
       </div>
 
-      <section className="band quickActions">
+      <section className="band">
         <div className="sectionHead">
-          <h2>Quick Actions</h2>
-          <span>Самые частые переходы для заполнения модели</span>
+          <h2>Executive summary</h2>
+          <span>{readiness.status}</span>
         </div>
-        <div className="actions">
-          <Link className="button primary" href="/menu"><Plus size={16} /> Добавить SKU</Link>
-          <Link className="button" href="/ingredients"><Wheat size={16} /> Добавить ингредиент</Link>
-          <Link className="button" href="/store">Заполнить Store Model</Link>
-          <Link className="button" href="/capex"><PackagePlus size={16} /> Добавить CAPEX</Link>
-          <Link className="button" href="/opex">Добавить OPEX</Link>
-          <Link className="button" href="/franchise">Открыть Franchise Mode</Link>
-          <a className="button" href="/api/export/full"><Download size={16} /> Export XLSX</a>
+        <div className="summaryGrid">
+          <div>
+            <strong>{activeSkuCount}</strong>
+            <span>active SKU</span>
+          </div>
+          <div>
+            <strong>{missingRecipeCount}</strong>
+            <span>missing recipes</span>
+          </div>
+          <div>
+            <strong>{negativeEbitdaCount}</strong>
+            <span>negative EBITDA SKU</span>
+          </div>
+          <div>
+            <strong>{checks.filter((check: any) => check.severity === "critical").length}</strong>
+            <span>critical audit items</span>
+          </div>
+        </div>
+        <div className="actions modelLinks">
+          <Link className="button" href="/unit-economics">Unit Economics</Link>
+          <Link className="button" href="/pnl">P&L</Link>
+          <Link className="button" href="/cashflow">Cashflow</Link>
+          <Link className="button" href="/break-even">Break-even</Link>
+          <Link className="button" href="/audit">Audit</Link>
         </div>
       </section>
 
@@ -275,8 +293,8 @@ export default function Dashboard({ summary, checks, diagnostics, economics, sen
 
       <section className="band">
         <div className="sectionHead">
-          <h2>Checks</h2>
-          <Link href="/checks">Открыть все</Link>
+          <h2>Audit</h2>
+          <Link href="/audit">Открыть Audit</Link>
         </div>
         <div className="checks">
           {checks.slice(0, 10).map((check: any) => (
@@ -300,26 +318,6 @@ function Diagnostics({ diagnostics }: { diagnostics: any[] }) {
     </section>
   );
 }
-
-export function Shell({ children }: { children: React.ReactNode }) {
-  return (
-    <div>
-      <nav className="nav">
-        <Link href="/" className="brand"><Gauge size={18} /> JK Finance</Link>
-        <Link href="/menu"><Table2 size={16} /> SKU</Link>
-        <Link href="/ingredients"><Wheat size={16} /> Ingredients</Link>
-        <Link href="/store">Store Model</Link>
-        <Link href="/capex">CAPEX</Link>
-        <Link href="/opex">OPEX</Link>
-        <Link href="/sensitivity">Sensitivity</Link>
-        <Link href="/franchise">Franchise</Link>
-        <Link href="/checks">Checks</Link>
-      </nav>
-      <main className="main">{children}</main>
-    </div>
-  );
-}
-
 
 function Metric({ title, value }: { title: string; value: string }) {
   return (
@@ -363,4 +361,15 @@ function compactRub(value: number) {
   if (abs >= 1_000_000) return `${num(value / 1_000_000, 1)}M`;
   if (abs >= 1_000) return `${num(value / 1_000, 0)}k`;
   return num(value, 0);
+}
+
+function calculateReadiness(completeness: Array<{ done: number; total: number }>, checks: any[], summary: any) {
+  const completionScore = completeness.length
+    ? completeness.reduce((sum, item) => sum + Math.min(1, item.done / Math.max(item.total, 1)), 0) / completeness.length
+    : 0;
+  const criticalPenalty = Math.min(0.35, checks.filter((check: any) => check.severity === "critical").length * 0.05);
+  const economicsPenalty = summary.monthlyRevenue <= 0 || summary.operatingCashflow <= 0 ? 0.1 : 0;
+  const score = Math.max(0, Math.round((completionScore - criticalPenalty - economicsPenalty) * 100));
+  const status = score >= 80 ? "Investor-ready draft" : score >= 55 ? "Needs audit before external sharing" : "Not ready for external sharing";
+  return { score, status };
 }

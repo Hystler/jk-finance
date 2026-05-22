@@ -93,7 +93,7 @@ export default function FranchisePage({ franchise, franchiseModel }: any) {
         <a href="#cashflow">24M Cashflow</a>
         <a href="#franchisor">Franchisor</a>
         <a href="#scenarios">Scenarios</a>
-        <a href="#checks">Checks</a>
+        <a href="#checks">Audit</a>
       </nav>
 
       <section className="band" id="inputs">
@@ -422,7 +422,7 @@ export default function FranchisePage({ franchise, franchiseModel }: any) {
 
       <section className="band" id="checks">
         <div className="sectionHead">
-          <h2>Checks</h2>
+          <h2>Audit</h2>
           <span>Что ломает экономику франчайзи</span>
         </div>
         {franchiseModel.missingDataWarnings.length > 0 && (

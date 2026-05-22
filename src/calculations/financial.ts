@@ -239,7 +239,9 @@ export function calculateStoreModel(
   const breakEvenOrdersPerDay =
     breakEvenOrders && store.workingDaysPerMonth > 0 ? breakEvenOrders / store.workingDaysPerMonth : null;
   const cumulativeCashflow = buildCashflow(initialInvestment, operatingCashflow, 36);
-  const paybackMonth = cumulativeCashflow.find((row) => row.cumulativeCashflow >= 0)?.month ?? null;
+  const paybackMonth = initialInvestment > 0 && monthlyRevenue > 0 && operatingCashflow > 0
+    ? cumulativeCashflow.find((row) => row.cumulativeCashflow >= 0)?.month ?? null
+    : null;
   const roi = initialInvestment > 0 ? (operatingCashflow * 12) / initialInvestment : null;
 
   return {

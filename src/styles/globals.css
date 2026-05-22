@@ -36,10 +36,12 @@ button, .button { min-height: 40px; border: 1px solid var(--border); background:
 button:hover, .button:hover { transform: translateY(-1px); border-color: var(--brown); }
 .button.primary, button.primary { background: var(--brown); border-color: var(--brown); color: #fffaf2; }
 button.danger, .button.danger { background: var(--red); border-color: var(--red); color: #fffaf2; }
-.nav { position: sticky; top: 0; z-index: 10; display: flex; align-items: center; gap: 8px; padding: 12px 20px; background: rgba(75, 47, 29, .94); border-bottom: 1px solid rgba(216, 199, 178, .45); overflow-x: auto; backdrop-filter: blur(10px); box-shadow: 0 14px 30px rgba(75, 47, 29, .16); }
-.nav a { display: inline-flex; align-items: center; gap: 6px; padding: 9px 12px; border-radius: 12px; white-space: nowrap; font-size: 14px; color: #F7F1E8; }
+.nav { position: sticky; top: 0; z-index: 10; display: flex; align-items: stretch; gap: 10px; padding: 10px 18px; background: rgba(75, 47, 29, .94); border-bottom: 1px solid rgba(216, 199, 178, .45); overflow-x: auto; backdrop-filter: blur(10px); box-shadow: 0 14px 30px rgba(75, 47, 29, .16); }
+.nav a { display: inline-flex; align-items: center; gap: 6px; padding: 8px 10px; border-radius: 10px; white-space: nowrap; font-size: 13px; color: #F7F1E8; }
 .nav a:hover { background: var(--surface-muted); color: var(--text); }
-.brand { font-weight: 950; margin-right: 12px; color: var(--brown-dark) !important; background: var(--beige-accent); }
+.brand { font-weight: 950; margin-right: 4px; color: var(--brown-dark) !important; background: var(--beige-accent); align-self: flex-start; }
+.navGroup { display: inline-flex; align-items: center; gap: 4px; padding-left: 10px; border-left: 1px solid rgba(247, 241, 232, .22); }
+.navGroupLabel { display: inline-flex; align-items: center; gap: 5px; color: rgba(247, 241, 232, .7); font-size: 12px; font-weight: 900; white-space: nowrap; padding: 8px 4px; }
 .main { max-width: 1480px; margin: 0 auto; padding: 32px 22px 56px; }
 .pageHeader { display: flex; align-items: flex-start; justify-content: space-between; gap: 24px; margin-bottom: 24px; }
 .pageHeader h1 { margin: 0 0 8px; font-size: 32px; letter-spacing: 0; color: var(--brown-dark); }
@@ -139,6 +141,13 @@ th.stickyAction { z-index: 5; background: var(--surface-muted); }
 .progressTrack { height: 9px; border-radius: 999px; overflow: hidden; background: var(--surface-muted); }
 .progressTrack span { display: block; height: 100%; background: var(--positive); border-radius: inherit; }
 .quickActions .actions { align-items: stretch; }
+.summaryGrid { display: grid; grid-template-columns: repeat(4, minmax(140px, 1fr)); gap: 12px; margin-bottom: 16px; }
+.summaryGrid div { display: grid; gap: 4px; padding: 14px; border: 1px solid var(--border); border-radius: 14px; background: #fffdf8; }
+.summaryGrid strong { font-size: 24px; color: var(--brown-dark); }
+.summaryGrid span { color: var(--text-secondary); font-size: 13px; font-weight: 800; }
+.modelLinks { margin-top: 8px; }
+.auditGroups { display: grid; gap: 18px; }
+.auditGroup { border: 1px solid var(--border); border-radius: 14px; padding: 16px; background: #fffdf8; }
 @media (max-width: 1050px) {
   .pageHeader { flex-direction: column; }
   .metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -149,4 +158,7 @@ th.stickyAction { z-index: 5; background: var(--surface-muted); }
   .rowActions { justify-content: flex-start; }
   .franchiseMetrics, .compactMetrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .sectionNav { position: static; }
+  .summaryGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .navGroup { padding-left: 6px; }
+  .navGroupLabel { display: none; }
 }

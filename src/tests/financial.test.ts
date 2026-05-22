@@ -214,8 +214,34 @@ describe("financial calculations", () => {
 
   it("builds sensitivity scenarios", () => {
     const rows = calculateSensitivity([product], store, [], [], { revenueTaxRate: 6 });
-    expect(rows.some((row) => row.parameter === "Средний чек")).toBe(true);
+    expect(rows.some((row) => row.parameter === "Average check")).toBe(true);
     expect(rows[0].values.Base).not.toBeNull();
+  });
+
+  it("keeps CAPEX outside EBITDA sensitivity while changing ROI/payback", () => {
+    const rows = calculateSensitivity(
+      [product],
+      store,
+      [{ category: "Аренда", amount: 100_000, behavior: "FIXED", driver: "FIXED" }],
+      [{ category: "CAPEX", amount: 1_000_000, usefulLifeMonths: 36, paidBeforeOpening: true }],
+      { revenueTaxRate: 6 }
+    );
+    const capex = rows.find((row) => row.parameter === "CAPEX");
+    expect(capex?.ebitdaDelta).toBe(0);
+    expect(capex?.roiDelta).not.toBe(0);
+  });
+
+  it("keeps tax rate outside EBITDA sensitivity while changing net cashflow", () => {
+    const rows = calculateSensitivity(
+      [product],
+      store,
+      [{ category: "Аренда", amount: 100_000, behavior: "FIXED", driver: "FIXED" }],
+      [{ category: "CAPEX", amount: 1_000_000, usefulLifeMonths: 36, paidBeforeOpening: true }],
+      { revenueTaxRate: 6 }
+    );
+    const taxRate = rows.find((row) => row.parameter === "Tax rate");
+    expect(taxRate?.ebitdaDelta).toBe(0);
+    expect(taxRate?.netCashflowDelta).toBeLessThan(0);
   });
 
   it("converts percent inputs to decimals", () => {
@@ -285,6 +311,12 @@ describe("financial calculations", () => {
   it("does not divide break-even by zero", () => {
     const model = calculateStoreModel([], { ...store, avgCheck: 0 }, [{ category: "Аренда", amount: 100_000, behavior: "FIXED", driver: "FIXED" }], [], {});
     expect(model.breakEvenOrders).toBeNull();
+  });
+
+  it("does not show store payback when opening investment is empty", () => {
+    const model = calculateStoreModel([product], store, [], [], { revenueTaxRate: 6 });
+    expect(model.initialInvestment).toBe(0);
+    expect(model.paybackMonth).toBeNull();
   });
 
   it("avgItemsPerOrder = 0 creates critical check", async () => {
