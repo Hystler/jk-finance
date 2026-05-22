@@ -64,11 +64,15 @@ type FranchiseData = {
 };
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  if (req.method !== "POST") return res.status(405).end();
+  if (req.method !== "POST") {
+    res.status(405).end();
+    return;
+  }
   const existing = await prisma.franchiseSettings.findFirst();
   if (req.body.action === "demo") {
     await applyDemoScenario(existing?.id);
-    return res.redirect(303, "/franchise");
+    res.redirect(303, "/franchise");
+    return;
   }
   const copyFromStore = req.body.action === "copy_store";
   const [store, tax, opex] = copyFromStore
