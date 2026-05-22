@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { useRouter } from "next/router";
 import { BarChart3, Database, FileSearch, Gauge, GitBranch, Landmark, Table2 } from "lucide-react";
 
 const navGroups = [
@@ -57,6 +58,12 @@ const navGroups = [
 ];
 
 export function Shell({ children }: { children: React.ReactNode }) {
+  const router = useRouter();
+  const isActive = (href: string) => {
+    if (href === "/") return router.pathname === "/";
+    return router.pathname === href || router.pathname.startsWith(`${href}/`);
+  };
+
   return (
     <div>
       <nav className="nav" aria-label="Main navigation">
@@ -66,7 +73,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
           return (
             <div className="navGroup" key={group.label}>
               <span className="navGroupLabel"><Icon size={14} /> {group.label}</span>
-              {group.links.map((link) => <Link key={link.href} href={link.href}>{link.label}</Link>)}
+              {group.links.map((link) => <Link className={isActive(link.href) ? "active" : ""} key={link.href} href={link.href}>{link.label}</Link>)}
             </div>
           );
         })}

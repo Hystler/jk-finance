@@ -20,7 +20,7 @@ import { Shell } from "@/pages/index";
 import { loadModel } from "@/lib/model";
 import { num, percent, rub } from "@/lib/format";
 
-const colors = ["#7A4E2D", "#D9B88F", "#6F7F52", "#C9822B", "#B23A2E", "#4B2F1D", "#A67246", "#4F7A73"];
+const colors = ["#D6B56D", "#E8D8B0", "#7FB069", "#D99A3D", "#C86B5A", "#8F7A4A", "#A88E52", "#6C8F78"];
 
 export async function getServerSideProps() {
   const data = await loadModel();
@@ -201,7 +201,7 @@ export default function FranchisePage({ franchise, franchiseModel }: any) {
                   <YAxis tickFormatter={(value) => compactRub(Number(value))} width={82} />
                   <Tooltip formatter={(value: number) => rub(value)} labelFormatter={(label) => `Month ${label}`} />
                   <Legend />
-                  <Line type="monotone" dataKey="revenue" name="Revenue" stroke="#7A4E2D" strokeWidth={3} dot={false} />
+                  <Line type="monotone" dataKey="revenue" name="Revenue" stroke="#D6B56D" strokeWidth={3} dot={false} />
                 </LineChart>
               </ResponsiveContainer>
             ) : <EmptyState text="Заполните Franchisee Store Inputs, чтобы увидеть revenue trend." />}
@@ -215,9 +215,9 @@ export default function FranchisePage({ franchise, franchiseModel }: any) {
                   <YAxis tickFormatter={(value) => compactRub(Number(value))} width={82} />
                   <Tooltip formatter={(value: number) => rub(value)} labelFormatter={(label) => `Month ${label}`} />
                   <Legend />
-                  <Bar dataKey="revenue" name="Revenue" fill="#D9B88F" />
-                  <Line type="monotone" dataKey="ebitdaAfterFees" name="EBITDA after fees" stroke="#6F7F52" strokeWidth={2} dot={false} />
-                  <Line type="monotone" dataKey="netOperatingCashflow" name="Net cashflow" stroke="#B23A2E" strokeWidth={2} dot={false} />
+                  <Bar dataKey="revenue" name="Revenue" fill="#D6B56D" />
+                  <Line type="monotone" dataKey="ebitdaAfterFees" name="EBITDA after fees" stroke="#7FB069" strokeWidth={2} dot={false} />
+                  <Line type="monotone" dataKey="netOperatingCashflow" name="Net cashflow" stroke="#C86B5A" strokeWidth={2} dot={false} />
                 </ComposedChart>
               </ResponsiveContainer>
             ) : <EmptyState text="Нет данных для графика EBITDA и cashflow." />}
@@ -232,9 +232,9 @@ export default function FranchisePage({ franchise, franchiseModel }: any) {
                   <XAxis dataKey="month" tickFormatter={(value) => `M${value}`} />
                   <YAxis tickFormatter={(value) => compactRub(Number(value))} width={82} />
                   <Tooltip formatter={(value: number) => rub(value)} labelFormatter={(label) => `Month ${label}`} />
-                  <ReferenceLine y={0} stroke="#4B2F1D" strokeDasharray="4 4" />
-                  {paybackPoint && <ReferenceDot x={paybackPoint.month} y={paybackPoint.cumulativeCashflow} r={6} fill="#6F7F52" stroke="#4B2F1D" />}
-                  <Line type="monotone" dataKey="cumulativeCashflow" name="Cumulative cashflow" stroke="#7A4E2D" strokeWidth={3} dot={false} />
+                  <ReferenceLine y={0} stroke="#706B64" strokeDasharray="4 4" />
+                  {paybackPoint && <ReferenceDot x={paybackPoint.month} y={paybackPoint.cumulativeCashflow} r={6} fill="#7FB069" stroke="#E8D8B0" />}
+                  <Line type="monotone" dataKey="cumulativeCashflow" name="Cumulative cashflow" stroke="#D6B56D" strokeWidth={3} dot={false} />
                 </LineChart>
               </ResponsiveContainer>
             ) : <EmptyState text="Заполните opening investment и cashflow assumptions." />}
@@ -249,7 +249,7 @@ export default function FranchisePage({ franchise, franchiseModel }: any) {
                   <Tooltip formatter={(value: number) => percent(value)} />
                   <ReferenceLine y={0} stroke="#4B2F1D" />
                   <Bar dataKey="value" name="Margin">
-                    {franchisee.marginRows.map((row: any, index: number) => <Cell key={index} fill={row.value < 0 ? "#B23A2E" : colors[index % colors.length]} />)}
+                    {franchisee.marginRows.map((row: any, index: number) => <Cell key={index} fill={row.value < 0 ? "#C86B5A" : colors[index % colors.length]} />)}
                   </Bar>
                 </BarChart>
               </ResponsiveContainer>
@@ -281,7 +281,7 @@ export default function FranchisePage({ franchise, franchiseModel }: any) {
                   <Tooltip formatter={(value: number) => rub(value)} />
                   <ReferenceLine x={0} stroke="#4B2F1D" />
                   <Bar dataKey="ebitdaImpact" name="EBITDA impact">
-                    {franchiseModel.sensitivity.map((row: any, index: number) => <Cell key={index} fill={row.ebitdaImpact < 0 ? "#B23A2E" : "#6F7F52"} />)}
+                    {franchiseModel.sensitivity.map((row: any, index: number) => <Cell key={index} fill={row.ebitdaImpact < 0 ? "#C86B5A" : "#7FB069"} />)}
                   </Bar>
                 </BarChart>
               </ResponsiveContainer>
