@@ -109,47 +109,141 @@ button:hover, .button:hover {
 }
 button.danger, .button.danger { background: rgba(200,107,90,.16); border-color: rgba(200,107,90,.38); color: #F2B4A8; }
 
-.nav {
+.navShell {
   position: sticky;
   top: 0;
   z-index: 10;
-  display: flex;
-  align-items: stretch;
-  gap: 10px;
-  padding: 10px 18px;
-  background: rgba(7,7,7,.70);
+  background: rgba(7,7,7,.72);
   border-bottom: 1px solid var(--border);
-  overflow-x: auto;
   backdrop-filter: var(--glass-blur);
   box-shadow: 0 18px 50px rgba(0,0,0,.38);
 }
-.nav a {
+.nav {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 14px;
+  width: min(1500px, 100%);
+  margin: 0 auto;
+  padding: 10px 22px;
+  overflow: visible;
+}
+.brand,
+.navMain a,
+.navActions a,
+.mobileMenuButton {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 6px;
+  min-height: 38px;
   padding: 8px 10px;
   border-radius: 10px;
   white-space: nowrap;
   font-size: 13px;
+  font-weight: 850;
   color: var(--text-secondary);
   border: 1px solid transparent;
+  transition: background .18s ease, border-color .18s ease, color .18s ease, transform .18s ease;
 }
-.nav a:hover, .nav a.active {
+.brand {
+  color: var(--champagne) !important;
+  background: linear-gradient(135deg, rgba(214,181,109,.18), rgba(255,255,255,.055));
+  border-color: rgba(214,181,109,.22) !important;
+  letter-spacing: .02em;
+}
+.navMain,
+.navActions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.navMain { justify-content: center; flex-wrap: wrap; }
+.navActions { justify-content: flex-end; }
+.navMain a:hover,
+.navMain a.active,
+.navActions a:hover,
+.navActions a.active {
   background: rgba(214,181,109,.11);
   border-color: rgba(214,181,109,.25);
   color: var(--champagne);
 }
-.brand {
-  font-weight: 950;
-  margin-right: 4px;
-  color: var(--champagne) !important;
-  background: linear-gradient(135deg, rgba(214,181,109,.18), rgba(255,255,255,.055));
-  border-color: rgba(214,181,109,.22) !important;
-  align-self: flex-start;
-  letter-spacing: .02em;
+.navActions a {
+  background: rgba(255,255,255,.045);
+  border-color: rgba(255,255,255,.08);
 }
-.navGroup { display: inline-flex; align-items: center; gap: 4px; padding-left: 10px; border-left: 1px solid rgba(255,255,255,.08); }
-.navGroupLabel { display: inline-flex; align-items: center; gap: 5px; color: var(--text-muted); font-size: 12px; font-weight: 900; white-space: nowrap; padding: 8px 4px; }
+.navActions a[href="/api/export/full"] {
+  color: var(--champagne);
+  border-color: rgba(214,181,109,.24);
+}
+.mobileMenuButton { display: none; background: rgba(255,255,255,.06); }
+.subnavShell {
+  width: min(1500px, 100%);
+  margin: 0 auto;
+  padding: 0 22px 14px;
+  display: grid;
+  grid-template-columns: 180px minmax(0, 1fr);
+  gap: 14px;
+  align-items: stretch;
+}
+.subnavHeader {
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 12px 14px;
+  background: rgba(255,255,255,.04);
+  display: grid;
+  align-content: center;
+  gap: 4px;
+}
+.subnavHeader span {
+  color: var(--champagne);
+  font-size: 13px;
+  font-weight: 950;
+}
+.subnavHeader strong {
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+.subnavGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 10px;
+}
+.subnavGrid a {
+  min-height: 62px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 12px 14px;
+  background: rgba(255,255,255,.035);
+  display: grid;
+  align-content: center;
+  gap: 4px;
+  color: var(--text-secondary);
+  transition: background .18s ease, border-color .18s ease, color .18s ease, transform .18s ease;
+}
+.subnavGrid a span {
+  color: var(--text);
+  font-weight: 900;
+  font-size: 14px;
+}
+.subnavGrid a small {
+  color: var(--text-muted);
+  font-weight: 750;
+  line-height: 1.25;
+}
+.subnavGrid a:hover {
+  transform: translateY(-1px);
+  background: rgba(214,181,109,.08);
+  border-color: rgba(214,181,109,.25);
+}
+.subnavGrid a.active {
+  background: linear-gradient(135deg, rgba(214,181,109,.14), rgba(255,255,255,.045));
+  border-color: rgba(232,216,176,.42);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.08), 0 10px 26px rgba(0,0,0,.22);
+}
+.subnavGrid a.active span { color: var(--champagne); }
 .main { max-width: 1500px; margin: 0 auto; padding: 34px 22px 58px; position: relative; z-index: 1; }
 
 .pageHeader {
@@ -369,6 +463,10 @@ th.stickyAction { z-index: 5; background: rgba(255,255,255,.08); }
 .recharts-tooltip-label { color: var(--champagne) !important; }
 .recharts-tooltip-item { color: var(--text) !important; }
 
+@media (max-width: 1180px) {
+  .investorNavAction { display: none !important; }
+}
+
 @media (max-width: 1050px) {
   .pageHeader, .heroContent { grid-template-columns: 1fr; flex-direction: column; }
   .heroControls { justify-items: start; min-width: 0; }
@@ -381,8 +479,49 @@ th.stickyAction { z-index: 5; background: rgba(255,255,255,.08); }
   .franchiseMetrics, .compactMetrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .sectionNav { position: static; }
   .summaryGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .navGroup { padding-left: 6px; }
-  .navGroupLabel { display: none; }
+  .subnavShell { grid-template-columns: 1fr; }
+  .subnavHeader { display: none; }
+  .subnavGrid { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
+}
+
+@media (max-width: 900px) {
+  .nav {
+    grid-template-columns: 1fr auto;
+    gap: 10px;
+    padding: 10px 14px;
+  }
+  .brand { justify-content: flex-start; }
+  .mobileMenuButton { display: inline-flex; }
+  .navMain,
+  .navActions,
+  .subnavShell {
+    display: none;
+  }
+  .navShell.open .navMain,
+  .navShell.open .navActions,
+  .navShell.open .subnavShell {
+    display: grid;
+    grid-column: 1 / -1;
+  }
+  .navShell.open .navMain,
+  .navShell.open .navActions {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    width: 100%;
+  }
+  .navShell.open .navMain a,
+  .navShell.open .navActions a {
+    justify-content: flex-start;
+    width: 100%;
+    white-space: normal;
+  }
+  .navShell.open .subnavShell {
+    padding: 0 14px 14px;
+  }
+  .navShell.open .subnavGrid {
+    grid-template-columns: 1fr;
+  }
+  .investorNavAction { display: inline-flex !important; }
 }
 
 @media (max-width: 680px) {
@@ -391,4 +530,8 @@ th.stickyAction { z-index: 5; background: rgba(255,255,255,.08); }
   .mainKpis, .secondaryKpis, .metrics, .summaryGrid { grid-template-columns: 1fr; }
   .metric strong { font-size: 24px; }
   .mainKpis .metric strong { font-size: 32px; }
+  .navShell.open .navMain,
+  .navShell.open .navActions {
+    grid-template-columns: 1fr;
+  }
 }

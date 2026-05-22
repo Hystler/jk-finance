@@ -55,7 +55,7 @@ export default function AuditPage({ checks }: any) {
         </div>
         <div className="auditGroups">
           {visibleGroups.map((group) => (
-            <div className="auditGroup" key={group.name}>
+            <div className="auditGroup" id={groupId(group.name)} key={group.name}>
               <div className="sectionHead"><h2>{group.name}</h2><span>{group.items.length} unique issue(s)</span></div>
               <div className="checks">
                 {group.items.map((item) => (
@@ -120,6 +120,10 @@ function dedupe(checks: any[]) {
 
 function normalizeMessage(message: string) {
   return message.replace(/^.*?:\s*/, "").replace(/[А-Яа-яA-Za-z0-9 _-]+ SKU/g, "SKU").trim();
+}
+
+function groupId(name: string) {
+  return name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 }
 
 function Metric({ title, value }: { title: string; value: string }) {
