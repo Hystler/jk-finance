@@ -180,7 +180,7 @@ export default function IngredientsPage({ ingredients, packaging }: any) {
           <label>Единица закупки<select value={ingredientEditor.purchaseUnit} onChange={(e) => setIngredientEditor({ ...ingredientEditor, purchaseUnit: e.target.value })}><option>kg</option><option>g</option><option>liter</option><option>ml</option><option>piece</option></select></label>
           <label>Edible yield, %<input type="number" min={0} max={100} step={1} value={ingredientEditor.edibleYieldPercent ?? 100} onChange={(e) => setIngredientEditor({ ...ingredientEditor, edibleYieldPercent: Number(e.target.value) })} /></label>
           <label>Storage loss, %<input type="number" min={0} max={100} step={1} value={ingredientEditor.storageLossPercent ?? 0} onChange={(e) => setIngredientEditor({ ...ingredientEditor, storageLossPercent: Number(e.target.value) })} /></label>
-          <label>Source<select value={ingredientEditor.source} onChange={(e) => setIngredientEditor({ ...ingredientEditor, source: e.target.value })}><option>MANUAL</option><option>IMPORTED</option><option>ASSUMPTION</option></select></label>
+          <label>Source<select value={ingredientEditor.source} onChange={(e) => setIngredientEditor({ ...ingredientEditor, source: e.target.value })}><option>MANUAL</option><option>USER_INPUT</option><option>IMPORTED</option><option>IMPORTED_SIMPLE</option><option>ASSUMPTION</option></select></label>
           <label className="wide">Комментарий<textarea value={ingredientEditor.comment ?? ""} onChange={(e) => setIngredientEditor({ ...ingredientEditor, comment: e.target.value })} /></label>
         </EditorModal>
       )}

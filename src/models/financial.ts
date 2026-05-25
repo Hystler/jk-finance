@@ -1,4 +1,12 @@
-export type SourceKind = "USER_INPUT" | "IMPORTED_MENU" | "CALCULATED" | "ASSUMPTION" | "MANUAL" | "IMPORTED";
+export type SourceKind =
+  | "USER_INPUT"
+  | "IMPORTED_MENU"
+  | "IMPORTED_SIMPLE"
+  | "USER_PORTION_COST"
+  | "CALCULATED"
+  | "ASSUMPTION"
+  | "MANUAL"
+  | "IMPORTED";
 
 export type ProductInput = {
   id: string;

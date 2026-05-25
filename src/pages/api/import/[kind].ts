@@ -1,6 +1,14 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { createHash } from "node:crypto";
 import { prisma } from "@/lib/db";
+import {
+  importSimpleIngredients,
+  importSimpleMenu,
+  importSimpleRecipes,
+  isSimpleImportKind,
+  normalizeSimpleImportKind,
+  type SimpleImportDb
+} from "@/imports/simple";
 
 const text = (value: unknown) => String(value ?? "").trim();
 const num = (value: unknown) => {
@@ -26,6 +34,23 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const rows = Array.isArray(req.body.rows) ? req.body.rows : [];
 
   try {
+    if (isSimpleImportKind(kind)) {
+      const simpleKind = normalizeSimpleImportKind(kind);
+      const db = simpleImportDb();
+      const summary =
+        simpleKind === "menu_simple" ? await importSimpleMenu(rows, db) :
+        simpleKind === "ingredients_simple" ? await importSimpleIngredients(rows, db) :
+        await importSimpleRecipes(rows, db);
+      const count =
+        summary.createdSku +
+        summary.updatedSku +
+        summary.createdIngredients +
+        summary.updatedIngredients +
+        summary.addedRecipeRows +
+        summary.updatedRecipeRows;
+      return res.json({ count, summary });
+    }
+
     if (kind === "menu") {
       let count = 0;
       for (const row of rows) {
@@ -167,4 +192,37 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   } catch (error) {
     return res.status(500).json({ error: error instanceof Error ? error.message : "Import failed" });
   }
+}
+
+function simpleImportDb(): SimpleImportDb {
+  return {
+    findProductByNameCategory: (name, category) =>
+      prisma.product.findUnique({ where: { category_name: { category, name } } }),
+    findProductByName: (name) =>
+      prisma.product.findFirst({ where: { name }, orderBy: { createdAt: "asc" } }),
+    createProduct: (data) =>
+      prisma.product.create({ data }),
+    updateProduct: (id, data) =>
+      prisma.product.update({ where: { id }, data }),
+    findIngredientByName: (name) =>
+      prisma.ingredient.findUnique({ where: { name } }),
+    createIngredient: (data) =>
+      prisma.ingredient.create({ data }),
+    updateIngredient: (id, data) =>
+      prisma.ingredient.update({ where: { id }, data }),
+    findRecipeItem: (productId, ingredientId, ingredientName) =>
+      prisma.recipeItem.findFirst({
+        where: {
+          productId,
+          OR: [
+            ingredientId ? { ingredientId } : undefined,
+            { ingredientName }
+          ].filter(Boolean) as any
+        }
+      }),
+    createRecipeItem: (data) =>
+      prisma.recipeItem.create({ data }),
+    updateRecipeItem: (id, data) =>
+      prisma.recipeItem.update({ where: { id }, data })
+  };
 }

@@ -14,7 +14,7 @@ const nullableNum = (value: unknown) => {
 };
 const unit = (value: unknown) => {
   const raw = text(value);
-  return ["g", "ml", "piece"].includes(raw) ? raw : "g";
+  return ["kg", "g", "liter", "ml", "piece"].includes(raw) ? raw : "g";
 };
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {

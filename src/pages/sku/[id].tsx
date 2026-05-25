@@ -3,7 +3,7 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { Edit3, Plus, Trash2 } from "lucide-react";
 import { Shell } from "@/pages/index";
-import { calculateRecipeItemCost, ingredientCostPerBaseUnit } from "@/calculations/financial";
+import { calculateRecipeItemCost } from "@/calculations/financial";
 import { loadModel } from "@/lib/model";
 import { percent, rub } from "@/lib/format";
 import { statusClass } from "@/pages/menu";
@@ -151,11 +151,11 @@ export default function SkuDetail({ product, modelProduct, economics, ingredient
               <tr>
                 <th className="stickyCol">Ингредиент</th>
                 <th>Количество</th>
-                <th>Закупочная цена</th>
-                <th>Cost/unit</th>
-                <th>Total cost</th>
-                <th>Yield/loss</th>
-                <th>Source</th>
+                <th>Unit</th>
+                <th>Purchase price</th>
+                <th>Purchase unit</th>
+                <th>Cost in portion</th>
+                <th>Comment</th>
                 <th className="stickyAction">Actions</th>
               </tr>
             </thead>
@@ -164,13 +164,13 @@ export default function SkuDetail({ product, modelProduct, economics, ingredient
                 const totalCost = calculateRecipeItemCost(item);
                 return (
                   <tr key={item.id}>
-                    <td className="stickyCol"><strong>{item.ingredientName}</strong><div className="muted">{item.comment}</div></td>
-                    <td>{item.quantity ?? item.netWeightGrams ?? item.grossWeightGrams ?? 0} {item.unit ?? "g"}</td>
-                    <td>{item.ingredient ? `${rub(item.ingredient.purchasePrice)} / ${item.ingredient.purchaseUnit}` : rub(item.unitPurchasePrice)}</td>
-                    <td>{item.ingredient ? `${rub(ingredientCostPerBaseUnit(item.ingredient))} / ${baseUnit(item.ingredient.purchaseUnit)}` : rub(item.costPerUnit)}</td>
-                    <td>{rub(totalCost)}</td>
-                    <td>{item.ingredient?.edibleYieldPercent ?? 100}% · storage {item.ingredient?.storageLossPercent ?? 0}% · recipe {item.yieldLossPercent ?? 0}%</td>
-                    <td><span className="pill">{item.source ?? item.ingredient?.source ?? "MANUAL"}</span></td>
+                    <td className="stickyCol"><strong>{item.ingredientName}</strong></td>
+                    <td>{item.quantity ?? item.netWeightGrams ?? item.grossWeightGrams ?? 0}</td>
+                    <td>{item.unit ?? "g"}</td>
+                    <td>{rub(item.ingredient?.purchasePrice ?? item.unitPurchasePrice ?? 0)}</td>
+                    <td>{item.ingredient?.purchaseUnit ?? item.unitMeasure ?? "kg"}</td>
+                    <td><strong>{rub(totalCost)}</strong><div><span className="pill">{recipeCostMode(item)}</span></div></td>
+                    <td>{item.comment || "—"}</td>
                     <td className="stickyAction">
                       <div className="iconActions">
                         <button className="iconButton" onClick={() => setRecipeEditor({ ...item, ingredientId: item.ingredientId ?? "", newIngredient: defaultIngredient() })}><Edit3 size={15} /></button>
@@ -183,6 +183,12 @@ export default function SkuDetail({ product, modelProduct, economics, ingredient
               {!modelProduct.recipes.length && <tr><td colSpan={8}>Нет рецептуры. Добавьте ингредиенты вручную, чтобы убрать статус “Нет рецептуры”.</td></tr>}
             </tbody>
           </table>
+        </div>
+        <div className="summaryGrid recipeTotals">
+          <div><strong>{rub(economics.ingredientCost)}</strong><span>Total ingredient cost</span></div>
+          <div><strong>{rub(economics.packagingCost)}</strong><span>Packaging</span></div>
+          <div><strong>{rub(economics.grossProfit)}</strong><span>Gross profit</span></div>
+          <div><strong>{percent(economics.grossMarginPercent)}</strong><span>Gross margin</span></div>
         </div>
       </section>
 
@@ -237,7 +243,7 @@ export default function SkuDetail({ product, modelProduct, economics, ingredient
           <label>Название<input value={skuEditor.name} onChange={(e) => setSkuEditor({ ...skuEditor, name: e.target.value })} /></label>
           <label>Категория<input value={skuEditor.category} onChange={(e) => setSkuEditor({ ...skuEditor, category: e.target.value })} /></label>
           <label>Цена, ₽<input type="number" min={0} step={10} value={skuEditor.salePrice} onChange={(e) => setSkuEditor({ ...skuEditor, salePrice: Number(e.target.value) })} /></label>
-          <label>Source<select value={skuEditor.source} onChange={(e) => setSkuEditor({ ...skuEditor, source: e.target.value })}><option>MANUAL</option><option>IMPORTED_MENU</option><option>ASSUMPTION</option></select></label>
+          <label>Source<select value={skuEditor.source} onChange={(e) => setSkuEditor({ ...skuEditor, source: e.target.value })}><option>MANUAL</option><option>USER_INPUT</option><option>IMPORTED_MENU</option><option>IMPORTED_SIMPLE</option><option>ASSUMPTION</option></select></label>
           <label className="wide">Описание<textarea value={skuEditor.description ?? ""} onChange={(e) => setSkuEditor({ ...skuEditor, description: e.target.value })} /></label>
           <label>Image URL<input value={skuEditor.imageUrl ?? ""} onChange={(e) => setSkuEditor({ ...skuEditor, imageUrl: e.target.value })} /></label>
           <label>Product URL<input value={skuEditor.productUrl ?? ""} onChange={(e) => setSkuEditor({ ...skuEditor, productUrl: e.target.value })} /></label>
@@ -263,7 +269,7 @@ export default function SkuDetail({ product, modelProduct, economics, ingredient
             </>
           )}
           <label>Количество<input type="number" min={0} step={1} value={recipeEditor.quantity ?? 0} onChange={(e) => setRecipeEditor({ ...recipeEditor, quantity: Number(e.target.value) })} /></label>
-          <label>Единица<select value={recipeEditor.unit ?? "g"} onChange={(e) => setRecipeEditor({ ...recipeEditor, unit: e.target.value })}><option>g</option><option>ml</option><option>piece</option></select></label>
+          <label>Единица<select value={recipeEditor.unit ?? "g"} onChange={(e) => setRecipeEditor({ ...recipeEditor, unit: e.target.value })}><option>g</option><option>kg</option><option>ml</option><option>liter</option><option>piece</option></select></label>
           <label>Yield loss, %<input type="number" min={0} max={100} step={1} value={recipeEditor.yieldLossPercent ?? 0} onChange={(e) => setRecipeEditor({ ...recipeEditor, yieldLossPercent: Number(e.target.value) })} /></label>
           <label className="wide">Комментарий<textarea value={recipeEditor.comment ?? ""} onChange={(e) => setRecipeEditor({ ...recipeEditor, comment: e.target.value })} /></label>
         </Editor>
@@ -320,8 +326,6 @@ function defaultIngredient() {
   return { name: "", category: "", supplier: "", purchasePrice: 0, purchaseUnit: "kg", edibleYieldPercent: 100, storageLossPercent: 0, comment: "", source: "MANUAL" };
 }
 
-function baseUnit(unit: string) {
-  if (unit === "kg" || unit === "g") return "g";
-  if (unit === "liter" || unit === "ml") return "ml";
-  return "piece";
+function recipeCostMode(item: any) {
+  return item.source === "USER_PORTION_COST" || item.totalIngredientCost != null ? "manual" : "calculated";
 }

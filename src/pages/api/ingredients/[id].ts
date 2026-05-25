@@ -18,7 +18,7 @@ const unit = (value: unknown) => {
 };
 const source = (value: unknown) => {
   const raw = text(value);
-  return ["MANUAL", "IMPORTED", "ASSUMPTION"].includes(raw) ? raw : "MANUAL";
+  return ["MANUAL", "IMPORTED", "IMPORTED_SIMPLE", "USER_INPUT", "ASSUMPTION"].includes(raw) ? raw : "MANUAL";
 };
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {

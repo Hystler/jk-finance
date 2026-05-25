@@ -44,13 +44,40 @@ export function calculateRecipeItemCost(item: RecipeInput): number {
     const storageLoss = ingredient.storageLossPercent == null ? 0 : pct(ingredient.storageLossPercent);
     const recipeLoss = item.yieldLossPercent == null ? 0 : pct(item.yieldLossPercent);
     const effectiveYield = clampYield((edibleYield / 100) * (1 - storageLoss / 100) * (1 - recipeLoss / 100));
-    return (money(quantity) * ingredientCostPerBaseUnit(ingredient)) / effectiveYield;
+    const quantityInBaseUnit = convertQuantityToIngredientBaseUnit(money(quantity), item.unit, ingredient.purchaseUnit);
+    return (quantityInBaseUnit * ingredientCostPerBaseUnit(ingredient)) / effectiveYield;
   }
 
   if (Number.isFinite(item.netWeightGrams ?? NaN) && Number.isFinite(item.unitPurchasePrice ?? NaN)) {
     return (Number(item.netWeightGrams) / 1000) * Number(item.unitPurchasePrice);
   }
   return 0;
+}
+
+function convertQuantityToIngredientBaseUnit(quantity: number, unit?: string | null, purchaseUnit?: string | null): number {
+  const sourceUnit = String(unit || defaultQuantityUnit(purchaseUnit)).toLowerCase();
+  const targetUnit = String(purchaseUnit || "kg").toLowerCase();
+  const source = unitInfo(sourceUnit);
+  const target = unitInfo(targetUnit);
+  if (!source || !target) return quantity;
+  if (source.group !== target.group) return 0;
+  return quantity * source.baseFactor;
+}
+
+function defaultQuantityUnit(purchaseUnit?: string | null) {
+  const unit = String(purchaseUnit || "kg").toLowerCase();
+  if (unit === "liter" || unit === "ml") return "ml";
+  if (unit === "piece") return "piece";
+  return "g";
+}
+
+function unitInfo(unit: string): { group: "mass" | "volume" | "piece"; baseFactor: number } | null {
+  if (unit === "kg") return { group: "mass", baseFactor: 1000 };
+  if (unit === "g") return { group: "mass", baseFactor: 1 };
+  if (unit === "liter") return { group: "volume", baseFactor: 1000 };
+  if (unit === "ml") return { group: "volume", baseFactor: 1 };
+  if (unit === "piece") return { group: "piece", baseFactor: 1 };
+  return null;
 }
 
 export function calculateMonthlyRevenue(store: StoreInputs): number {

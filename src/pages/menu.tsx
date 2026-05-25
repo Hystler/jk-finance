@@ -31,7 +31,7 @@ export async function getServerSideProps() {
 }
 
 export default function MenuPage({ economics, products, categories }: any) {
-  const [mode, setMode] = useState<ViewMode>("basic");
+  const [mode, setMode] = useState<ViewMode>("unit");
   const [editor, setEditor] = useState<any | null>(null);
   const [created, setCreated] = useState<any | null>(null);
 
@@ -108,7 +108,7 @@ export default function MenuPage({ economics, products, categories }: any) {
                 {(mode === "basic" || mode === "unit" || mode === "full") && <th>Ingredient Cost</th>}
                 {(mode === "full") && <th>Ingredient %</th>}
                 {(mode === "basic" || mode === "unit" || mode === "full") && <th>Packaging</th>}
-                {(mode === "unit" || mode === "full") && <th>Variable Cost</th>}
+                {(mode === "basic" || mode === "unit" || mode === "full") && <th>Variable Cost</th>}
                 {mode === "full" && <th>Taxes/item</th>}
                 {mode === "full" && <th>Delivery/commission</th>}
                 {mode === "full" && <th>Marketing/item</th>}
@@ -117,10 +117,11 @@ export default function MenuPage({ economics, products, categories }: any) {
                 {mode === "full" && <th>Total Cost/item</th>}
                 {(mode === "basic" || mode === "full") && <th>Gross Profit</th>}
                 {(mode === "basic" || mode === "full") && <th>Gross Margin</th>}
-                {(mode === "unit" || mode === "full") && <th>Contribution</th>}
+                {(mode === "basic" || mode === "unit" || mode === "full") && <th>Contribution</th>}
                 {mode === "full" && <th>Contribution %</th>}
-                {(mode === "unit" || mode === "full") && <th>EBITDA/item</th>}
+                {(mode === "basic" || mode === "unit" || mode === "full") && <th>EBITDA/item</th>}
                 {(mode === "unit" || mode === "full") && <th>EBITDA %</th>}
+                <th>Recipe Cost</th>
                 <th>Status</th>
                 <th className="stickyAction">Actions</th>
               </tr>
@@ -144,7 +145,7 @@ export default function MenuPage({ economics, products, categories }: any) {
                   {(mode === "basic" || mode === "unit" || mode === "full") && <MoneyCell value={row.ingredientCost} />}
                   {mode === "full" && <td>{percent(row.salePrice ? row.ingredientCost / row.salePrice : 0)}</td>}
                   {(mode === "basic" || mode === "unit" || mode === "full") && <MoneyCell value={row.packagingCost} />}
-                  {(mode === "unit" || mode === "full") && <MoneyCell value={row.totalVariableCost} />}
+                  {(mode === "basic" || mode === "unit" || mode === "full") && <MoneyCell value={row.totalVariableCost} />}
                   {mode === "full" && <MoneyCell value={row.taxPerItem} />}
                   {mode === "full" && <MoneyCell value={row.deliveryCommission + row.deliveryLogisticsCost} />}
                   {mode === "full" && <MoneyCell value={row.marketingCostPerItem} />}
@@ -153,10 +154,11 @@ export default function MenuPage({ economics, products, categories }: any) {
                   {mode === "full" && <MoneyCell value={row.totalCostPerItem} />}
                   {(mode === "basic" || mode === "full") && <MoneyCell value={row.grossProfit} />}
                   {(mode === "basic" || mode === "full") && <td className={row.grossMarginPercent < 0 ? "negative" : "positive"}>{percent(row.grossMarginPercent)}</td>}
-                  {(mode === "unit" || mode === "full") && <MoneyCell value={row.contributionMargin} />}
+                  {(mode === "basic" || mode === "unit" || mode === "full") && <MoneyCell value={row.contributionMargin} />}
                   {mode === "full" && <td className={row.contributionMarginPercent < 0 ? "negative" : "positive"}>{percent(row.contributionMarginPercent)}</td>}
-                  {(mode === "unit" || mode === "full") && <MoneyCell value={row.ebitdaPerItem} />}
+                  {(mode === "basic" || mode === "unit" || mode === "full") && <MoneyCell value={row.ebitdaPerItem} />}
                   {(mode === "unit" || mode === "full") && <td className={row.ebitdaMarginPercent < 0 ? "negative" : "positive"}>{percent(row.ebitdaMarginPercent)}</td>}
+                  <td><span className="pill">{recipeCostMode(products.find((p: any) => p.id === row.productId))}</span></td>
                   <td>
                     <span className={`status ${statusClass(row.status)}`} title={row.warnings?.join("\n")}>{translateStatus(row.status)}</span>
                   </td>
@@ -188,7 +190,7 @@ export default function MenuPage({ economics, products, categories }: any) {
                 <label>Категория<input list="categories" value={editor.category} onChange={(e) => setEditor({ ...editor, category: e.target.value })} /></label>
                 <datalist id="categories">{categories.map((item: string) => <option key={item} value={item} />)}</datalist>
                 <label>Цена, ₽<input type="number" min={0} step={10} value={editor.salePrice} onChange={(e) => setEditor({ ...editor, salePrice: Number(e.target.value) })} /></label>
-                <label>Source<select value={editor.source} onChange={(e) => setEditor({ ...editor, source: e.target.value })}><option>MANUAL</option><option>IMPORTED_MENU</option><option>ASSUMPTION</option></select></label>
+                <label>Source<select value={editor.source} onChange={(e) => setEditor({ ...editor, source: e.target.value })}><option>MANUAL</option><option>USER_INPUT</option><option>IMPORTED_MENU</option><option>IMPORTED_SIMPLE</option><option>ASSUMPTION</option></select></label>
                 <label className="wide">Описание<textarea value={editor.description ?? ""} onChange={(e) => setEditor({ ...editor, description: e.target.value })} /></label>
                 <label>Image URL<input value={editor.imageUrl ?? ""} onChange={(e) => setEditor({ ...editor, imageUrl: e.target.value })} /></label>
                 <label>Product URL<input value={editor.productUrl ?? ""} onChange={(e) => setEditor({ ...editor, productUrl: e.target.value })} /></label>
@@ -237,4 +239,13 @@ function translateStatus(status: string) {
     "low margin": "Низкая маржа"
   };
   return labels[status] ?? status;
+}
+
+function recipeCostMode(product: any) {
+  const recipes = product?.recipes ?? [];
+  if (!recipes.length) return "missing";
+  const manual = recipes.filter((item: any) => item.source === "USER_PORTION_COST" || item.totalIngredientCost != null).length;
+  if (manual === recipes.length) return "manual";
+  if (manual > 0) return "mixed";
+  return "calculated";
 }

@@ -84,6 +84,7 @@ export default async function handler(_req: NextApiRequest, res: NextApiResponse
       purchasePrice: item.ingredient?.purchasePrice,
       purchaseUnit: item.ingredient?.purchaseUnit,
       totalIngredientCost: item.totalIngredientCost,
+      comment: item.comment,
       source: item.source
     })),
     ingredients: data.ingredientsRaw as any,

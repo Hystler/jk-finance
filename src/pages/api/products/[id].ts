@@ -14,7 +14,7 @@ const bool = (value: unknown, fallback = true) => {
 };
 const source = (value: unknown) => {
   const raw = text(value);
-  return ["IMPORTED_MENU", "MANUAL", "ASSUMPTION"].includes(raw) ? raw : "MANUAL";
+  return ["IMPORTED_MENU", "IMPORTED_SIMPLE", "USER_INPUT", "MANUAL", "ASSUMPTION"].includes(raw) ? raw : "MANUAL";
 };
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
