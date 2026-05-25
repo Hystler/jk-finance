@@ -3,6 +3,7 @@ import { calculateRecipeRowCost } from "../src/lib/recipe-cost";
 import { findDuplicateIngredientGroups, findDuplicateSkuGroups, repairImportedName } from "../src/lib/import-repair";
 
 const apply = process.argv.includes("--apply");
+const includeManual = process.argv.includes("--include-manual");
 
 async function main() {
   const mergeResult = await mergeDuplicateSku();
@@ -147,7 +148,7 @@ async function repairNames() {
 async function recalculateRecipes() {
   const recipes = await prisma.recipeItem.findMany({ include: { ingredient: true } });
   const plan = recipes
-    .filter((item) => item.source !== "USER_PORTION_COST")
+    .filter((item) => includeManual || item.source !== "USER_PORTION_COST")
     .map((item) => ({
       item,
       cost: calculateRecipeRowCost({
@@ -169,13 +170,13 @@ async function recalculateRecipes() {
           unitMeasure: item.ingredient?.purchaseUnit ?? null,
           costPerUnit: null,
           totalIngredientCost: null,
-          source: item.source || "IMPORTED_SIMPLE"
+          source: includeManual ? "IMPORTED_SIMPLE" : item.source || "IMPORTED_SIMPLE"
         }
       });
     }
   }
 
-  return { planned: plan.length };
+  return { planned: plan.length, includeManual };
 }
 
 main()

@@ -17,7 +17,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (action === "audit") return res.json(await auditImports());
   if (action === "repair-imported-names") return res.json(await repairImportedNames(apply));
   if (action === "merge-duplicate-sku") return res.json(await mergeDuplicateSku(apply));
-  if (action === "recalculate-recipe-costs") return res.json(await recalculateRecipeCosts(apply));
+  if (action === "recalculate-recipe-costs") return res.json(await recalculateRecipeCosts(apply, req.body.includeManual === true));
   return res.status(400).json({ error: "Unknown admin import repair action." });
 }
 
@@ -174,10 +174,10 @@ async function mergeDuplicateSku(apply: boolean) {
   return { apply, merged: plan.length, mergedIngredients: ingredientPlan.length, plan, ingredientPlan };
 }
 
-async function recalculateRecipeCosts(apply: boolean) {
+async function recalculateRecipeCosts(apply: boolean, includeManual = false) {
   const recipes = await prisma.recipeItem.findMany({ include: { ingredient: true } });
   const plan = recipes
-    .filter((item) => item.source !== "USER_PORTION_COST")
+    .filter((item) => includeManual || item.source !== "USER_PORTION_COST")
     .map((item) => {
       const cost = calculateRecipeRowCost({
         ingredient: item.ingredient,
@@ -199,13 +199,13 @@ async function recalculateRecipeCosts(apply: boolean) {
           unitMeasure: item.ingredient?.purchaseUnit ?? null,
           costPerUnit: null,
           totalIngredientCost: null,
-          source: item.source === "USER_PORTION_COST" ? item.source : item.source || "IMPORTED_SIMPLE"
+          source: includeManual ? "IMPORTED_SIMPLE" : item.source || "IMPORTED_SIMPLE"
         }
       });
     }
   }
 
-  return { apply, recalculatedRecipeRows: plan.length };
+  return { apply, includeManual, recalculatedRecipeRows: plan.length };
 }
 
 function pickProduct(product: { id: string; name: string; category: string; salePrice?: number | null }) {
