@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Download, Upload } from "lucide-react";
 import * as XLSX from "xlsx";
 import { Shell } from "@/pages/index";
+import { parseCsvRows } from "@/imports/csv";
 
 type ImportKind = "menu" | "ingredients" | "recipes";
 
@@ -21,7 +22,16 @@ type ImportSummary = {
   addedRecipeRows?: number;
   createdRecipeRows?: number;
   updatedRecipeRows?: number;
+  skippedRows?: number;
+  mergedRows?: number;
+  duplicateMatches?: number;
+  calculatedRecipeRows?: number;
+  manualRecipeRows?: number;
+  detectedEncoding?: string | null;
+  encodingIssueDetected?: boolean;
+  criticalWarnings?: string[];
   errors?: ImportIssue[];
+  warnings?: ImportIssue[];
 };
 
 type ResultState = {
@@ -76,14 +86,17 @@ export default function ImportPage() {
     if (!file) return;
     setUploadingKind(kind);
     try {
-      const workbook = XLSX.read(await file.arrayBuffer(), { type: "array" });
-      const sheet = workbook.Sheets[workbook.SheetNames[0]];
-      if (!sheet) throw new Error("Файл пустой или не содержит таблицу.");
-      const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: "" });
+      const parsed = await parseFile(file);
       const res = await fetch(`/api/import/${kind}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ rows })
+        body: JSON.stringify({
+          rows: parsed.rows,
+          metadata: {
+            detectedEncoding: parsed.detectedEncoding,
+            encodingIssueDetected: parsed.encodingIssueDetected
+          }
+        })
       });
       const body = await res.json();
       if (!res.ok) {
@@ -162,22 +175,39 @@ export default function ImportPage() {
   );
 }
 
+async function parseFile(file: File) {
+  const buffer = await file.arrayBuffer();
+  const isCsv = file.name.toLowerCase().endsWith(".csv") || file.type.includes("csv");
+  if (isCsv) return parseCsvRows(buffer);
+
+  const workbook = XLSX.read(buffer, { type: "array" });
+  const sheet = workbook.Sheets[workbook.SheetNames[0]];
+  if (!sheet) throw new Error("Файл пустой или не содержит таблицу.");
+  return {
+    rows: XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: "" }),
+    detectedEncoding: "xlsx",
+    encodingIssueDetected: false
+  };
+}
+
 function ImportResult({ result }: { result: ResultState }) {
   const summary = result.summary ?? {};
   const errors = summary.errors ?? [];
+  const warnings = summary.warnings ?? [];
   return (
-    <section className={`band ${result.failed || errors.length ? "warningPanel" : "successPanelSoft"}`}>
+    <section className={`band ${result.failed || errors.length || warnings.length || summary.criticalWarnings?.length ? "warningPanel" : "successPanelSoft"}`}>
       <div className="sectionHead">
         <h2>Last import result</h2>
         <span>{result.title}</span>
       </div>
       {result.message ? <p><strong>{result.message}</strong></p> : <SummaryMetrics kind={result.kind} summary={summary} />}
-      {errors.length > 0 && (
+      <SummaryDetails summary={summary} />
+      {[...errors, ...warnings].length > 0 && (
         <div className="tableScroll">
           <table>
             <thead><tr><th>Row number</th><th>Field</th><th>Message</th></tr></thead>
             <tbody>
-              {errors.map((error, index) => (
+              {[...errors, ...warnings].map((error, index) => (
                 <tr key={`${error.row_number}-${error.field}-${index}`}>
                   <td>{error.row_number}</td>
                   <td>{error.field}</td>
@@ -198,6 +228,8 @@ function SummaryMetrics({ kind, summary }: { kind: ImportKind; summary: ImportSu
       <div className="summaryGrid">
         <SummaryMetric label="Created SKU" value={summary.createdSku ?? 0} />
         <SummaryMetric label="Updated SKU" value={summary.updatedSku ?? 0} />
+        <SummaryMetric label="Skipped" value={summary.skippedRows ?? 0} />
+        <SummaryMetric label="Merged" value={summary.mergedRows ?? 0} />
         <SummaryMetric label="Errors" value={summary.errors?.length ?? 0} />
       </div>
     );
@@ -208,6 +240,8 @@ function SummaryMetrics({ kind, summary }: { kind: ImportKind; summary: ImportSu
       <div className="summaryGrid">
         <SummaryMetric label="Created ingredients" value={summary.createdIngredients ?? 0} />
         <SummaryMetric label="Updated ingredients" value={summary.updatedIngredients ?? 0} />
+        <SummaryMetric label="Skipped" value={summary.skippedRows ?? 0} />
+        <SummaryMetric label="Merged" value={summary.mergedRows ?? 0} />
         <SummaryMetric label="Errors" value={summary.errors?.length ?? 0} />
       </div>
     );
@@ -218,9 +252,23 @@ function SummaryMetrics({ kind, summary }: { kind: ImportKind; summary: ImportSu
       <SummaryMetric label="Created recipe rows" value={summary.createdRecipeRows ?? summary.addedRecipeRows ?? 0} />
       <SummaryMetric label="Updated recipe rows" value={summary.updatedRecipeRows ?? 0} />
       <SummaryMetric label="Created ingredients" value={summary.createdIngredientsOnTheFly ?? 0} />
+      <SummaryMetric label="Calculated rows" value={summary.calculatedRecipeRows ?? 0} />
+      <SummaryMetric label="Manual rows" value={summary.manualRecipeRows ?? 0} />
+      <SummaryMetric label="Skipped" value={summary.skippedRows ?? 0} />
       <SummaryMetric label="Errors" value={summary.errors?.length ?? 0} />
     </div>
   );
+}
+
+function SummaryDetails({ summary }: { summary: ImportSummary }) {
+  const details = [
+    summary.detectedEncoding ? `Detected encoding: ${summary.detectedEncoding}` : null,
+    summary.duplicateMatches ? `Duplicate matches: ${summary.duplicateMatches}` : null,
+    summary.encodingIssueDetected ? "Encoding issue detected" : null,
+    ...(summary.criticalWarnings ?? [])
+  ].filter(Boolean);
+  if (!details.length) return null;
+  return <div className="badgeRow">{details.map((detail) => <span className="status warning" key={detail}>{detail}</span>)}</div>;
 }
 
 function SummaryMetric({ label, value }: { label: string; value: number }) {

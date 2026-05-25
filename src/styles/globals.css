@@ -385,6 +385,7 @@ button.danger, .button.danger { background: rgba(200,107,90,.16); border-color: 
 .status.critical { background: rgba(200,107,90,.16); color: #F0A99C; border: 1px solid rgba(200,107,90,.30); }
 .status.bad, .status.negative-contribution, .status.negative-EBITDA { background: rgba(200,107,90,.16); color: #F0A99C; border: 1px solid rgba(200,107,90,.30); }
 .status.missing-recipe, .status.missing-packaging, .status.high-food-cost, .status.low-margin { background: rgba(217,154,61,.14); color: #F0C987; border: 1px solid rgba(217,154,61,.28); }
+.inlineStatus { margin-left: 8px; vertical-align: middle; }
 .pill { background: rgba(255,255,255,.07); color: var(--text-secondary); border: 1px solid var(--border); }
 .warningPill { background: rgba(217,154,61,.13); color: #F0C987; border-color: rgba(217,154,61,.30); }
 .badgeRow { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }

@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import { calculateProductEconomics, calculateRecipeItemCost, calculateStoreModel } from "@/calculations/financial";
 import { SIMPLE_EXPORT_COLUMNS, toSimpleIngredientRows, toSimpleMenuRows, toSimpleRecipeRows } from "@/exports/simple";
 import { buildModelWorkbook } from "@/exports/workbook";
+import { decodeCsvBytes, parseCsvRows } from "@/imports/csv";
 import {
   calculateSimplePortionCost,
   importSimpleIngredients,
@@ -17,8 +18,11 @@ import {
   type SimpleRecipeData,
   type SimpleRecipeRecord
 } from "@/imports/simple";
+import { findDuplicateSkuGroups } from "@/lib/import-repair";
 import { calculateModelReadiness } from "@/lib/readiness";
 import { calculateFoodCostPercent, calculateRecipeRowCost } from "@/lib/recipe-cost";
+import { normalizeLookupKey } from "@/lib/text-normalize";
+import { recipeCostMode } from "@/pages/menu";
 import type { ProductInput, StoreInputs } from "@/models/financial";
 
 const store: StoreInputs = {
@@ -38,6 +42,37 @@ const store: StoreInputs = {
 };
 
 describe("simple import", () => {
+  it("UTF-8 CSV import with Cyrillic names", async () => {
+    const csv = 'sku_name,category,sale_price,description\nБургер Рокки,Бургеры,450,"Булочка, котлета"\n';
+    const parsed = parseCsvRows(new TextEncoder().encode(csv));
+    const db = new MemoryImportDb();
+    const summary = await importSimpleMenu(parsed.rows, db);
+
+    expect(parsed.detectedEncoding).toBe("utf-8");
+    expect(summary.createdSku).toBe(1);
+    expect(db.products[0]).toMatchObject({ name: "Бургер Рокки", category: "Бургеры", salePrice: 450 });
+  });
+
+  it("cp1251 fallback import", async () => {
+    const csv = 'ingredient_name,category,purchase_price,purchase_unit\nГовядина,Мясо,850,kg\n';
+    const parsed = parseCsvRows(encodeCp1251(csv));
+    const db = new MemoryImportDb();
+    const summary = await importSimpleIngredients(parsed.rows, db);
+
+    expect(parsed.detectedEncoding).toBe("windows-1251");
+    expect(summary.createdIngredients).toBe(1);
+    expect(db.ingredients[0]).toMatchObject({ name: "Говядина", category: "Мясо" });
+  });
+
+  it("UTF-8 BOM CSV import with Cyrillic names", () => {
+    const csv = new TextEncoder().encode("sku_name,category,sale_price\nШаурма,Шаурма,460\n");
+    const withBom = new Uint8Array([0xef, 0xbb, 0xbf, ...Array.from(csv)]);
+    const decoded = decodeCsvBytes(withBom);
+
+    expect(decoded.detectedEncoding).toBe("utf-8-bom");
+    expect(decoded.text).toContain("Шаурма");
+  });
+
   it("Import simple ingredient creates ingredient", async () => {
     const db = new MemoryImportDb();
     const summary = await importSimpleIngredients([{ ingredient_name: "Говядина", category: "Мясо", purchase_price: 850, purchase_unit: "kg" }], db);
@@ -72,6 +107,26 @@ describe("simple import", () => {
     expect(summary.updatedSku).toBe(1);
     expect(db.products).toHaveLength(1);
     expect(db.products[0]).toMatchObject({ salePrice: 490, description: "new" });
+  });
+
+  it("normalized SKU upsert does not create duplicate", async () => {
+    const db = new MemoryImportDb();
+    await importSimpleMenu([{ sku_name: "Шаурма с говядиной", category: "Шаурма", sale_price: 460 }], db);
+    const summary = await importSimpleMenu([{ sku_name: "  шаурма   с   говядиной  ", category: "шаурма", sale_price: 490 }], db);
+
+    expect(summary.updatedSku).toBe(1);
+    expect(db.products).toHaveLength(1);
+    expect(db.products[0]).toMatchObject({ name: "шаурма с говядиной", category: "шаурма", salePrice: 490 });
+  });
+
+  it("normalized ingredient upsert handles ё and spaces", async () => {
+    const db = new MemoryImportDb();
+    await importSimpleIngredients([{ ingredient_name: "Сыр чеддер", purchase_price: 800, purchase_unit: "kg" }], db);
+    const summary = await importSimpleIngredients([{ ingredient_name: " сыр  чёддер ", purchase_price: 900, purchase_unit: "kg" }], db);
+
+    expect(summary.updatedIngredients).toBe(1);
+    expect(db.ingredients).toHaveLength(1);
+    expect(db.ingredients[0]).toMatchObject({ name: "сыр чёддер", purchasePrice: 900 });
   });
 
   it("Import simple recipe links SKU and ingredient", async () => {
@@ -117,6 +172,12 @@ describe("simple import", () => {
     expect(calculateRecipeItemCost(productFromDb(db).recipes![0])).toBe(77);
   });
 
+  it("manual cost badge only when cost_in_portion explicitly provided", () => {
+    expect(recipeCostMode({ recipes: [{ source: "IMPORTED_SIMPLE", totalIngredientCost: 102 }] })).toBe("calculated");
+    expect(recipeCostMode({ recipes: [{ source: "USER_PORTION_COST", totalIngredientCost: 77 }] })).toBe("manual");
+    expect(recipeCostMode({ recipes: [{ source: "IMPORTED_SIMPLE" }, { source: "USER_PORTION_COST" }] })).toBe("mixed");
+  });
+
   it("Missing SKU returns row error", async () => {
     const db = new MemoryImportDb();
     const summary = await importSimpleRecipes([{ sku_name: "Нет SKU", ingredient_name: "Говядина", quantity: 120, unit: "g", purchase_price: 850, purchase_unit: "kg" }], db);
@@ -149,6 +210,18 @@ describe("simple import", () => {
     expect(summary.createdRecipeRows).toBe(1);
     expect(db.ingredients[0]).toMatchObject({ name: "Булочка", purchasePrice: 25, purchaseUnit: "piece" });
     expect(db.recipes[0]).toMatchObject({ ingredientName: "Булочка", source: "IMPORTED_SIMPLE" });
+  });
+
+  it("duplicate merge audit chooses normal SKU over mojibake SKU", () => {
+    const brokenName = Buffer.from("Шаурма с говядиной", "utf8").toString("latin1");
+    const groups = findDuplicateSkuGroups([
+      { id: "broken", name: brokenName, category: "Шаурма", salePrice: 0, recipes: [{}] },
+      { id: "normal", name: "Шаурма с говядиной", category: "Шаурма", salePrice: 460, recipes: [] }
+    ]);
+
+    expect(groups).toHaveLength(1);
+    expect(groups[0].canonical.id).toBe("normal");
+    expect(groups[0].duplicates[0].id).toBe("broken");
   });
 
   it("SKU ingredient cost updates after recipe import", async () => {
@@ -334,6 +407,13 @@ class MemoryImportDb implements SimpleImportDb {
     return this.products.find((product) => product.name === name) ?? null;
   }
 
+  async findProductByNormalizedKey(nameKey: string, categoryKey: string) {
+    return this.products.find((product) =>
+      normalizeLookupKey(product.name) === nameKey &&
+      (!categoryKey || normalizeLookupKey(product.category) === categoryKey)
+    ) ?? null;
+  }
+
   async createProduct(data: SimpleProductData) {
     const product = { id: this.id("sku"), ...data };
     this.products.push(product);
@@ -348,6 +428,10 @@ class MemoryImportDb implements SimpleImportDb {
 
   async findIngredientByName(name: string) {
     return this.ingredients.find((ingredient) => ingredient.name === name) ?? null;
+  }
+
+  async findIngredientByNormalizedName(nameKey: string) {
+    return this.ingredients.find((ingredient) => normalizeLookupKey(ingredient.name) === nameKey) ?? null;
   }
 
   async createIngredient(data: SimpleIngredientData) {
@@ -383,4 +467,16 @@ class MemoryImportDb implements SimpleImportDb {
     this.nextId += 1;
     return id;
   }
+}
+
+function encodeCp1251(value: string) {
+  const bytes = Array.from(value, (char) => {
+    const code = char.charCodeAt(0);
+    if (code < 128) return code;
+    if (char === "Ё") return 0xa8;
+    if (char === "ё") return 0xb8;
+    if (code >= 0x0410 && code <= 0x044f) return code - 0x0410 + 0xc0;
+    throw new Error(`Unsupported cp1251 test char: ${char}`);
+  });
+  return new Uint8Array(bytes);
 }

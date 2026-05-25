@@ -201,7 +201,6 @@ export function calculateProductEconomics(
   ].filter((item): item is string => Boolean(item));
   const status =
     missingRecipeData ? "missing recipe" :
-    !hasPackaging || packagingCost === 0 ? "missing packaging" :
     contributionMargin < 0 ? "negative contribution" :
     ebitdaPerItem < 0 ? "negative EBITDA" :
     safeDiv(ingredientCost, salePrice) > 0.4 ? "high food cost" :

@@ -17,6 +17,8 @@
     "db:seed": "tsx prisma/seed.ts",
     "seed": "npm run db:seed",
     "postinstall": "prisma generate",
+    "audit:imports": "tsx scripts/audit_import_duplicates.ts",
+    "admin:repair-imports": "tsx scripts/admin_import_repair.ts",
     "scrape": "tsx scripts/scrape_site.ts"
   },
   "dependencies": {

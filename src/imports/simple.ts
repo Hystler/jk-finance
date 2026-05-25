@@ -1,3 +1,5 @@
+import { cleanImportedText, hasMojibakeInRecord, normalizeCompositeKey, normalizeLookupKey } from "@/lib/text-normalize";
+
 export const SIMPLE_UNITS = ["kg", "g", "liter", "ml", "piece"] as const;
 
 export type SimpleUnit = (typeof SIMPLE_UNITS)[number];
@@ -21,6 +23,14 @@ export type SimpleImportSummary = {
   addedRecipeRows: number;
   createdRecipeRows: number;
   updatedRecipeRows: number;
+  skippedRows: number;
+  mergedRows: number;
+  duplicateMatches: number;
+  calculatedRecipeRows: number;
+  manualRecipeRows: number;
+  detectedEncoding: string | null;
+  encodingIssueDetected: boolean;
+  criticalWarnings: string[];
   errors: ImportRowIssue[];
   warnings: ImportWarning[];
 };
@@ -62,6 +72,8 @@ export type SimpleImportDb = {
   findRecipeItem(productId: string, ingredientId: string | null, ingredientName: string): Promise<SimpleRecipeRecord | null>;
   createRecipeItem(data: SimpleRecipeData): Promise<SimpleRecipeRecord>;
   updateRecipeItem(id: string, data: SimpleRecipeData): Promise<SimpleRecipeRecord>;
+  findProductByNormalizedKey?(nameKey: string, categoryKey: string): Promise<SimpleProductRecord | null>;
+  findIngredientByNormalizedName?(nameKey: string): Promise<SimpleIngredientRecord | null>;
 };
 
 export type SimpleProductData = {
@@ -115,6 +127,14 @@ export const createEmptySimpleSummary = (): SimpleImportSummary => ({
   addedRecipeRows: 0,
   createdRecipeRows: 0,
   updatedRecipeRows: 0,
+  skippedRows: 0,
+  mergedRows: 0,
+  duplicateMatches: 0,
+  calculatedRecipeRows: 0,
+  manualRecipeRows: 0,
+  detectedEncoding: null,
+  encodingIssueDetected: false,
+  criticalWarnings: [],
   errors: [],
   warnings: []
 });
@@ -165,9 +185,13 @@ export async function importSimpleIngredients(rows: Array<Record<string, unknown
   const summary = createEmptySimpleSummary();
 
   for (const [index, row] of rows.entries()) {
-    if (isBlankRow(row)) continue;
+    if (isBlankRow(row)) {
+      summary.skippedRows += 1;
+      continue;
+    }
     const rowNumber = index + 2;
-    const name = text(row.ingredient_name ?? row.name);
+    recordEncodingWarning(summary, rowNumber, "ingredients", row);
+    const name = cleanImportedText(row.ingredient_name ?? row.name);
     const purchasePrice = parseRequiredNumber(row.purchase_price ?? row.purchasePrice);
     const purchaseUnit = normalizeSimpleUnit(row.purchase_unit ?? row.purchaseUnit);
 
@@ -186,19 +210,23 @@ export async function importSimpleIngredients(rows: Array<Record<string, unknown
 
     const data: SimpleIngredientData = {
       name,
-      category: text(row.category) || null,
-      supplier: text(row.supplier) || null,
+      category: cleanImportedText(row.category) || null,
+      supplier: cleanImportedText(row.supplier) || null,
       purchasePrice,
       purchaseUnit,
       edibleYieldPercent: 100,
       storageLossPercent: 0,
-      comment: text(row.comment) || null,
+      comment: cleanImportedText(row.comment) || null,
       source: "IMPORTED_SIMPLE"
     };
-    const existing = await db.findIngredientByName(name);
+    const existing = await findIngredient(db, name);
     if (existing) {
       await db.updateIngredient(existing.id, data);
       summary.updatedIngredients += 1;
+      if (normalizeLookupKey(existing.name) === normalizeLookupKey(name) && existing.name !== name) {
+        summary.mergedRows += 1;
+        summary.duplicateMatches += 1;
+      }
     } else {
       await db.createIngredient(data);
       summary.createdIngredients += 1;
@@ -212,10 +240,14 @@ export async function importSimpleMenu(rows: Array<Record<string, unknown>>, db:
   const summary = createEmptySimpleSummary();
 
   for (const [index, row] of rows.entries()) {
-    if (isBlankRow(row)) continue;
+    if (isBlankRow(row)) {
+      summary.skippedRows += 1;
+      continue;
+    }
     const rowNumber = index + 2;
-    const name = text(row.sku_name ?? row.name);
-    const category = text(row.category);
+    recordEncodingWarning(summary, rowNumber, "menu", row);
+    const name = cleanImportedText(row.sku_name ?? row.name);
+    const category = cleanImportedText(row.category);
     const salePrice = parseRequiredNumber(row.sale_price ?? row.salePrice ?? row.price);
 
     if (!name) {
@@ -234,17 +266,21 @@ export async function importSimpleMenu(rows: Array<Record<string, unknown>>, db:
     const data: SimpleProductData = {
       category,
       name,
-      description: text(row.description) || null,
+      description: cleanImportedText(row.description) || null,
       salePrice,
-      imageUrl: text(row.image_url ?? row.imageUrl) || null,
-      productUrl: text(row.product_url ?? row.productUrl) || null,
+      imageUrl: cleanImportedText(row.image_url ?? row.imageUrl) || null,
+      productUrl: cleanImportedText(row.product_url ?? row.productUrl) || null,
       isActive: parseBool(row.is_active ?? row.isActive, true),
       source: "IMPORTED_SIMPLE"
     };
-    const existing = await db.findProductByNameCategory(name, category);
+    const existing = await findProduct(db, name, category);
     if (existing) {
       await db.updateProduct(existing.id, data);
       summary.updatedSku += 1;
+      if (normalizeCompositeKey(existing.name, existing.category) === normalizeCompositeKey(name, category) && (existing.name !== name || existing.category !== category)) {
+        summary.mergedRows += 1;
+        summary.duplicateMatches += 1;
+      }
     } else {
       await db.createProduct(data);
       summary.createdSku += 1;
@@ -258,10 +294,14 @@ export async function importSimpleRecipes(rows: Array<Record<string, unknown>>, 
   const summary = createEmptySimpleSummary();
 
   for (const [index, row] of rows.entries()) {
-    if (isBlankRow(row)) continue;
+    if (isBlankRow(row)) {
+      summary.skippedRows += 1;
+      continue;
+    }
     const rowNumber = index + 2;
-    const skuName = text(row.sku_name ?? row.product_name ?? row.productName);
-    const ingredientName = text(row.ingredient_name ?? row.ingredientName);
+    recordEncodingWarning(summary, rowNumber, "recipes", row);
+    const skuName = cleanImportedText(row.sku_name ?? row.product_name ?? row.productName);
+    const ingredientName = cleanImportedText(row.ingredient_name ?? row.ingredientName);
     const quantity = parseRequiredNumber(row.quantity);
     const unit = normalizeSimpleUnit(row.unit);
     const purchasePriceFromRow = parseOptionalNumber(row.purchase_price ?? row.purchasePrice);
@@ -298,13 +338,13 @@ export async function importSimpleRecipes(rows: Array<Record<string, unknown>>, 
       continue;
     }
 
-    const product = await db.findProductByName(skuName);
+    const product = await findProductByName(db, skuName);
     if (!product) {
       addError(summary, rowNumber, "recipes", "sku_name", "SKU not found.", skuName);
       continue;
     }
 
-    let ingredient = await db.findIngredientByName(ingredientName);
+    let ingredient = await findIngredient(db, ingredientName);
     if (!ingredient) {
       if (purchasePriceFromRow == null) {
         addError(summary, rowNumber, "recipes", "ingredient_name", "Ingredient not found and no purchase price provided.", ingredientName);
@@ -342,6 +382,10 @@ export async function importSimpleRecipes(rows: Array<Record<string, unknown>>, 
         source: "IMPORTED_SIMPLE"
       });
       summary.updatedIngredients += 1;
+      if (normalizeLookupKey(ingredient.name) === normalizeLookupKey(ingredientName) && ingredient.name !== ingredientName) {
+        summary.mergedRows += 1;
+        summary.duplicateMatches += 1;
+      }
     }
 
     const purchasePrice = purchasePriceFromRow ?? ingredient.purchasePrice;
@@ -361,6 +405,9 @@ export async function importSimpleRecipes(rows: Array<Record<string, unknown>>, 
       }
       costInPortion = calculated.cost;
       source = "IMPORTED_SIMPLE";
+      summary.calculatedRecipeRows += 1;
+    } else {
+      summary.manualRecipeRows += 1;
     }
 
     const recipeData: SimpleRecipeData = {
@@ -376,7 +423,7 @@ export async function importSimpleRecipes(rows: Array<Record<string, unknown>>, 
       unitMeasure: purchaseUnit,
       costPerUnit: null,
       totalIngredientCost: source === "USER_PORTION_COST" ? costInPortion : null,
-      comment: text(row.comment) || null,
+      comment: cleanImportedText(row.comment) || null,
       source
     };
 
@@ -411,6 +458,7 @@ function unitInfo(unit: SimpleUnit): { group: UnitGroup; baseFactor: number } {
 }
 
 function addError(summary: SimpleImportSummary, rowNumber: number, type: ImportRowIssue["type"], field: string, message: string, rawValue: unknown) {
+  summary.skippedRows += 1;
   summary.errors.push({
     row_number: rowNumber,
     type,
@@ -422,4 +470,34 @@ function addError(summary: SimpleImportSummary, rowNumber: number, type: ImportR
 
 function isBlankRow(row: Record<string, unknown>) {
   return Object.values(row).every((value) => text(value) === "");
+}
+
+function recordEncodingWarning(summary: SimpleImportSummary, rowNumber: number, type: ImportRowIssue["type"], row: Record<string, unknown>) {
+  if (!hasMojibakeInRecord(row)) return;
+  summary.encodingIssueDetected = true;
+  summary.warnings.push({
+    row_number: rowNumber,
+    type,
+    field: "encoding",
+    message: "Encoding issue detected and repaired where possible.",
+    raw_value: JSON.stringify(row)
+  });
+}
+
+async function findProduct(db: SimpleImportDb, name: string, category: string) {
+  const exact = await db.findProductByNameCategory(name, category);
+  if (exact) return exact;
+  return db.findProductByNormalizedKey?.(normalizeLookupKey(name), normalizeLookupKey(category)) ?? null;
+}
+
+async function findProductByName(db: SimpleImportDb, name: string) {
+  const exact = await db.findProductByName(name);
+  if (exact) return exact;
+  return db.findProductByNormalizedKey?.(normalizeLookupKey(name), "") ?? null;
+}
+
+async function findIngredient(db: SimpleImportDb, name: string) {
+  const exact = await db.findIngredientByName(name);
+  if (exact) return exact;
+  return db.findIngredientByNormalizedName?.(normalizeLookupKey(name)) ?? null;
 }

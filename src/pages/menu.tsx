@@ -144,7 +144,12 @@ export default function MenuPage({ economics, products, categories }: any) {
                   </td>
                   {(mode === "basic" || mode === "unit" || mode === "full") && <MoneyCell value={row.ingredientCost} />}
                   {mode === "full" && <td>{percent(row.salePrice ? row.ingredientCost / row.salePrice : 0)}</td>}
-                  {(mode === "basic" || mode === "unit" || mode === "full") && <MoneyCell value={row.packagingCost} />}
+                  {(mode === "basic" || mode === "unit" || mode === "full") && (
+                    <td className={`moneyCell ${row.packagingCost > 0 ? "positive" : ""}`}>
+                      {rub(row.packagingCost)}
+                      {row.warnings?.some((warning: string) => warning.includes("упаков")) && <span className="status warning inlineStatus">Нет упаковки</span>}
+                    </td>
+                  )}
                   {(mode === "basic" || mode === "unit" || mode === "full") && <MoneyCell value={row.totalVariableCost} />}
                   {mode === "full" && <MoneyCell value={row.taxPerItem} />}
                   {mode === "full" && <MoneyCell value={row.deliveryCommission + row.deliveryLogisticsCost} />}
@@ -241,10 +246,10 @@ function translateStatus(status: string) {
   return labels[status] ?? status;
 }
 
-function recipeCostMode(product: any) {
+export function recipeCostMode(product: any) {
   const recipes = product?.recipes ?? [];
   if (!recipes.length) return "missing";
-  const manual = recipes.filter((item: any) => item.source === "USER_PORTION_COST" || item.totalIngredientCost != null).length;
+  const manual = recipes.filter((item: any) => item.source === "USER_PORTION_COST").length;
   if (manual === recipes.length) return "manual";
   if (manual > 0) return "mixed";
   return "calculated";

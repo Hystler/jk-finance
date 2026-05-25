@@ -12,6 +12,8 @@ import {
 } from "@/imports/simple";
 import { createEmptySimpleSummary, normalizeSimpleUnit, parseRequiredNumber } from "@/imports/simple";
 import { validateUnitCompatibility } from "@/lib/recipe-cost";
+import { findDuplicateSkuGroups } from "@/lib/import-repair";
+import { normalizeLookupKey } from "@/lib/text-normalize";
 
 const text = (value: unknown) => String(value ?? "").trim();
 const num = (value: unknown) => {
@@ -36,6 +38,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
   const kind = String(req.query.kind);
   const rows = Array.isArray(req.body.rows) ? req.body.rows : [];
+  const metadata = req.body.metadata ?? {};
 
   try {
     if (isPrimarySimpleKind(kind) || isSimpleImportKind(kind)) {
@@ -52,6 +55,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         summary.updatedIngredients +
         summary.addedRecipeRows +
         summary.updatedRecipeRows;
+      summary.detectedEncoding = typeof metadata.detectedEncoding === "string" ? metadata.detectedEncoding : summary.detectedEncoding;
+      if (metadata.encodingIssueDetected) summary.encodingIssueDetected = true;
+      if (simpleKind === "menu_simple") await appendDuplicateSkuWarnings(summary);
       return res.json({ count, summary: responseSummary(simpleKind, summary) });
     }
 
@@ -252,12 +258,24 @@ function simpleImportDb(): SimpleImportDb {
       prisma.product.findUnique({ where: { category_name: { category, name } } }),
     findProductByName: (name) =>
       prisma.product.findFirst({ where: { name }, orderBy: { createdAt: "asc" } }),
+    findProductByNormalizedKey: async (nameKey, categoryKey) => {
+      const candidates = await prisma.product.findMany({ orderBy: { createdAt: "asc" } });
+      return candidates.find((product) => {
+        const sameName = normalizeLookupKey(product.name) === nameKey;
+        const sameCategory = !categoryKey || normalizeLookupKey(product.category) === categoryKey;
+        return sameName && sameCategory;
+      }) ?? null;
+    },
     createProduct: (data) =>
       prisma.product.create({ data }),
     updateProduct: (id, data) =>
       prisma.product.update({ where: { id }, data }),
     findIngredientByName: (name) =>
       prisma.ingredient.findUnique({ where: { name } }),
+    findIngredientByNormalizedName: async (nameKey) => {
+      const candidates = await prisma.ingredient.findMany({ orderBy: { lastUpdatedAt: "asc" } });
+      return candidates.find((ingredient) => normalizeLookupKey(ingredient.name) === nameKey) ?? null;
+    },
     createIngredient: (data) =>
       prisma.ingredient.create({ data }),
     updateIngredient: (id, data) =>
@@ -277,6 +295,16 @@ function simpleImportDb(): SimpleImportDb {
     updateRecipeItem: (id, data) =>
       prisma.recipeItem.update({ where: { id }, data })
   };
+}
+
+async function appendDuplicateSkuWarnings(summary: SimpleImportSummary) {
+  const products = await prisma.product.findMany({
+    include: { recipes: true, packagingLinks: true }
+  });
+  const duplicateGroups = findDuplicateSkuGroups(products);
+  if (!duplicateGroups.length) return;
+  summary.duplicateMatches += duplicateGroups.reduce((sum, group) => sum + group.duplicates.length, 0);
+  summary.criticalWarnings.push(`Duplicate normalized SKU exists: ${duplicateGroups.length} group(s).`);
 }
 
 function isPrimarySimpleKind(kind: string) {
