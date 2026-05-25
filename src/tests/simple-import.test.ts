@@ -16,6 +16,7 @@ import {
   type SimpleRecipeRecord
 } from "@/imports/simple";
 import { calculateModelReadiness } from "@/lib/readiness";
+import { calculateFoodCostPercent, calculateRecipeRowCost } from "@/lib/recipe-cost";
 import type { ProductInput, StoreInputs } from "@/models/financial";
 
 const store: StoreInputs = {
@@ -87,6 +88,22 @@ describe("simple import", () => {
   it("Recipe cost piece->piece: 25 ₽/piece * 1 = 25 ₽", () => {
     const cost = calculateSimplePortionCost({ purchasePrice: 25, purchaseUnit: "piece", quantity: 1, unit: "piece" });
     expect(cost).toEqual({ cost: 25 });
+  });
+
+  it("adds waste percent to final ingredient cost", () => {
+    const cost = calculateRecipeRowCost({
+      ingredient: { name: "Картошка фри", purchasePrice: 155.2, purchaseUnit: "kg" },
+      quantity: 100,
+      unit: "g",
+      wastePercent: 10
+    });
+
+    expect(cost.costPerPortion).toBeCloseTo(15.52);
+    expect(cost.finalIngredientCost).toBeCloseTo(17.07);
+  });
+
+  it("returns null food cost percent when sale price is empty", () => {
+    expect(calculateFoodCostPercent(134.8, 0)).toBeNull();
   });
 
   it("Manual cost_in_portion overrides calculation", async () => {

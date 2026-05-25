@@ -2,6 +2,7 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { buildModelWorkbook } from "@/exports/workbook";
 import { prisma } from "@/lib/db";
 import { loadModel } from "@/lib/model";
+import { calculateRecipeRowCost } from "@/lib/recipe-cost";
 
 export default async function handler(_req: NextApiRequest, res: NextApiResponse) {
   const data = await loadModel();
@@ -73,20 +74,30 @@ export default async function handler(_req: NextApiRequest, res: NextApiResponse
       isActive: product.isActive,
       source: product.source
     })),
-    recipes: recipes.map((item) => ({
-      productId: item.productId,
-      productName: item.product.name,
-      ingredientId: item.ingredientId,
-      ingredientName: item.ingredientName,
-      quantity: item.quantity,
-      unit: item.unit,
-      yieldLossPercent: item.yieldLossPercent,
-      purchasePrice: item.ingredient?.purchasePrice,
-      purchaseUnit: item.ingredient?.purchaseUnit,
-      totalIngredientCost: item.totalIngredientCost,
-      comment: item.comment,
-      source: item.source
-    })),
+    recipes: recipes.map((item) => {
+      const cost = calculateRecipeRowCost({
+        ingredient: item.ingredient,
+        quantity: item.quantity,
+        unit: item.unit,
+        wastePercent: item.yieldLossPercent,
+        manualFinalCost: item.totalIngredientCost
+      });
+      return {
+        sku_id: item.productId,
+        sku_name: item.product.name,
+        ingredient_id: item.ingredientId,
+        ingredient_name: item.ingredientName,
+        quantity_per_portion: item.quantity,
+        unit: item.unit,
+        waste_percent: item.yieldLossPercent ?? 0,
+        cost_per_portion: cost.costPerPortion,
+        final_ingredient_cost: cost.finalIngredientCost,
+        purchase_price: item.ingredient?.purchasePrice,
+        purchase_unit: item.ingredient?.purchaseUnit,
+        comment: item.comment,
+        source: item.source
+      };
+    }),
     ingredients: data.ingredientsRaw as any,
     packaging: data.packagingRaw as any,
     productPackaging: productPackaging.map((item) => ({

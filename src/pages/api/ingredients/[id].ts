@@ -44,7 +44,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   if (req.method === "DELETE") {
-    await prisma.recipeItem.updateMany({ where: { ingredientId: id }, data: { ingredientId: null } });
+    const recipeCount = await prisma.recipeItem.count({ where: { ingredientId: id } });
+    if (recipeCount > 0) {
+      return res.status(409).json({ error: `Ingredient is used in recipes (${recipeCount} rows). Remove it from SKU recipes first.` });
+    }
     await prisma.ingredient.delete({ where: { id } });
     return res.json({ ok: true });
   }

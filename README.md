@@ -38,7 +38,7 @@ npm run dev
 
 Откройте `http://localhost:3000`. Если порт занят, Next.js предложит следующий.
 
-Seed создаёт базовые `StoreInput`, `TaxSettings`, `FranchiseSettings`, импортирует SKU из `public/scrape_artifacts/scraped_menu.json` как `IMPORTED_MENU` и не создаёт фейковые рецептуры или закупочные себестоимости.
+Seed создаёт базовые `StoreInput`, `TaxSettings`, `FranchiseSettings`, импортирует SKU из `public/scrape_artifacts/scraped_menu.json` как `IMPORTED_MENU` и добавляет небольшой набор `ASSUMPTION` SKU/ingredients для проверки ручной сборки рецептур. Готовые рецептуры seed не создаёт.
 
 ## SKU
 

@@ -9,6 +9,8 @@ import {
   normalizeSimpleImportKind,
   type SimpleImportDb
 } from "@/imports/simple";
+import { createEmptySimpleSummary, normalizeSimpleUnit, parseRequiredNumber } from "@/imports/simple";
+import { validateUnitCompatibility } from "@/lib/recipe-cost";
 
 const text = (value: unknown) => String(value ?? "").trim();
 const num = (value: unknown) => {
@@ -113,33 +115,80 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     if (kind === "recipes") {
-      let count = 0;
-      for (const row of rows) {
-        const productId = text(row.product_id ?? row.productId);
-        const productName = text(row.product_name ?? row.productName);
-        const product = productId ? await prisma.product.findUnique({ where: { id: productId } }) : await prisma.product.findFirst({ where: { name: productName } });
-        if (!product) continue;
+      const summary = createEmptySimpleSummary();
+      for (const [index, row] of rows.entries()) {
+        const rowNumber = index + 2;
+        const productId = text(row.sku_id ?? row.product_id ?? row.productId);
+        const productName = text(row.sku_name ?? row.product_name ?? row.productName ?? row.name);
+        const ingredientId = text(row.ingredient_id ?? row.ingredientId);
         const ingredientName = text(row.ingredient_name ?? row.ingredientName);
-        await prisma.recipeItem.create({
-          data: {
-            productId: product.id,
-            ingredientName,
-            quantity: nullableNum(row.quantity),
-            unit: text(row.unit),
-            grossWeightGrams: nullableNum(row.gross_weight_grams ?? row.grossWeightGrams),
-            netWeightGrams: nullableNum(row.net_weight_grams ?? row.netWeightGrams),
-            yieldLossPercent: nullableNum(row.yield_loss_percent ?? row.yieldLossPercent),
-            unitPurchasePrice: nullableNum(row.unit_purchase_price ?? row.unitPurchasePrice),
-            unitMeasure: text(row.unit_measure ?? row.unitMeasure),
-            costPerUnit: nullableNum(row.cost_per_unit ?? row.costPerUnit),
-            totalIngredientCost: nullableNum(row.total_ingredient_cost ?? row.totalIngredientCost),
-            comment: text(row.comment),
-            source: "MANUAL"
-          }
-        });
-        count += 1;
+        const quantity = parseRequiredNumber(row.quantity_per_portion ?? row.quantity ?? row.net_weight_grams ?? row.netWeightGrams ?? row.gross_weight_grams ?? row.grossWeightGrams);
+        const recipeUnit = normalizeSimpleUnit(row.unit);
+        const wastePercent = nullableNum(row.waste_percent ?? row.yield_loss_percent ?? row.yieldLossPercent) ?? 0;
+        const finalCost = nullableNum(row.final_ingredient_cost ?? row.total_ingredient_cost ?? row.totalIngredientCost);
+
+        const product = productId
+          ? await prisma.product.findUnique({ where: { id: productId } })
+          : productName
+            ? await prisma.product.findFirst({ where: { name: productName } })
+            : null;
+        if (!product) {
+          summary.errors.push({ row_number: rowNumber, type: "recipes", message: `SKU не найден: ${productName || productId || "empty"}`, raw_value: productName || productId });
+          continue;
+        }
+        const ingredient = ingredientId
+          ? await prisma.ingredient.findUnique({ where: { id: ingredientId } })
+          : ingredientName
+            ? await prisma.ingredient.findUnique({ where: { name: ingredientName } })
+            : null;
+        if (!ingredient) {
+          summary.errors.push({ row_number: rowNumber, type: "recipes", message: `Ingredient не найден: ${ingredientName || ingredientId || "empty"}`, raw_value: ingredientName || ingredientId });
+          continue;
+        }
+        if (quantity == null || quantity <= 0) {
+          summary.errors.push({ row_number: rowNumber, type: "recipes", message: "quantity_per_portion должен быть > 0.", raw_value: String(row.quantity_per_portion ?? row.quantity ?? "") });
+          continue;
+        }
+        if (!recipeUnit) {
+          summary.errors.push({ row_number: rowNumber, type: "recipes", message: "Unit должен быть одним из: kg, g, liter, ml, piece.", raw_value: text(row.unit) });
+          continue;
+        }
+        if (wastePercent < 0) {
+          summary.errors.push({ row_number: rowNumber, type: "recipes", message: "waste_percent должен быть >= 0.", raw_value: String(row.waste_percent ?? row.yield_loss_percent ?? "") });
+          continue;
+        }
+        const compatibility = validateUnitCompatibility(ingredient.purchaseUnit, recipeUnit);
+        if (!compatibility.ok) {
+          summary.errors.push({ row_number: rowNumber, type: "recipes", message: compatibility.message ?? "Несовместимые единицы.", raw_value: `${ingredient.purchaseUnit} -> ${recipeUnit}` });
+          continue;
+        }
+
+        const data = {
+          productId: product.id,
+          ingredientId: ingredient.id,
+          ingredientName: ingredient.name,
+          quantity,
+          unit: recipeUnit,
+          grossWeightGrams: null,
+          netWeightGrams: null,
+          yieldLossPercent: wastePercent,
+          unitPurchasePrice: null,
+          unitMeasure: ingredient.purchaseUnit,
+          costPerUnit: null,
+          totalIngredientCost: finalCost,
+          comment: text(row.comment) || null,
+          source: finalCost != null ? "USER_PORTION_COST" : "MANUAL"
+        };
+        const existing = await prisma.recipeItem.findFirst({ where: { productId: product.id, ingredientId: ingredient.id } });
+        if (existing) {
+          await prisma.recipeItem.update({ where: { id: existing.id }, data });
+          summary.updatedRecipeRows += 1;
+        } else {
+          await prisma.recipeItem.create({ data });
+          summary.addedRecipeRows += 1;
+        }
       }
-      return res.json({ count });
+      return res.json({ count: summary.addedRecipeRows + summary.updatedRecipeRows, summary });
     }
 
     if (kind === "capex") {

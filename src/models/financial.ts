@@ -41,7 +41,7 @@ export type RecipeInput = {
   ingredientName: string;
   ingredient?: IngredientInput | null;
   quantity?: number | null;
-  unit?: "g" | "ml" | "piece" | string | null;
+  unit?: "kg" | "g" | "liter" | "ml" | "piece" | string | null;
   grossWeightGrams?: number | null;
   netWeightGrams?: number | null;
   yieldLossPercent?: number | null;

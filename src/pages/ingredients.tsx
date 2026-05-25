@@ -69,9 +69,10 @@ export default function IngredientsPage({ ingredients, packaging }: any) {
     window.location.reload();
   };
   const deleteIngredient = async (id: string, name: string) => {
-    if (!confirm(`Удалить ингредиент "${name}"? В рецептурах останется текстовое название без привязки к справочнику.`)) return;
+    if (!confirm(`Удалить ингредиент "${name}"? Если он используется в рецептах, удаление будет запрещено.`)) return;
     const response = await fetch(`/api/ingredients/${id}`, { method: "DELETE" });
-    if (!response.ok) return alert("Не удалось удалить ингредиент");
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) return alert(payload.error ?? "Не удалось удалить ингредиент");
     window.location.reload();
   };
   const deletePackaging = async (id: string, name: string) => {

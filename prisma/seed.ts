@@ -147,10 +147,70 @@ async function seedMenu() {
   return imported;
 }
 
+async function seedRecipeBuilderTestData() {
+  const skuRows = [
+    ["Бургер классический белый", "Бургеры", 350],
+    ["Бургер классический черный", "Бургеры", 370],
+    ["Шаурма с курицей", "Шаурма", 320],
+    ["Шаурма с говядиной", "Шаурма", 430],
+    ["Хот-дог классический", "Хот-доги", 250],
+    ["БоксФуд курица", "Боксы", 390],
+    ["АйдахоБокс курица", "Боксы", 410]
+  ] as const;
+  const ingredientRows = [
+    ["Котлета", "Мясо", 68.8, "piece"],
+    ["Булочка белая", "Хлеб", 31, "piece"],
+    ["Булочка черная", "Хлеб", 44, "piece"],
+    ["Ломтик сыра", "Сыр", 10, "piece"],
+    ["Овощи бургер", "Овощи", 15, "piece"],
+    ["Соус", "Соусы", 10, "piece"],
+    ["Лаваш", "Хлеб", 9, "piece"],
+    ["Курица 90 г", "Мясо", 50, "piece"],
+    ["Говядина 90 г", "Мясо", 139, "piece"],
+    ["Свинина 90 г", "Мясо", 60.6, "piece"],
+    ["Картошка фри", "Гарниры", 155.2, "kg"],
+    ["Бекон 20 г", "Мясо", 10, "piece"]
+  ] as const;
+
+  for (const [name, category, salePrice] of skuRows) {
+    await prisma.product.upsert({
+      where: { category_name: { category, name } },
+      create: {
+        id: stableId("menu", `${category}:${name}`),
+        category,
+        name,
+        salePrice,
+        isActive: true,
+        source: "ASSUMPTION",
+        sourceNote: "Recipe builder test SKU"
+      },
+      update: {}
+    });
+  }
+
+  for (const [name, category, purchasePrice, purchaseUnit] of ingredientRows) {
+    await prisma.ingredient.upsert({
+      where: { name },
+      create: {
+        name,
+        category,
+        purchasePrice,
+        purchaseUnit,
+        edibleYieldPercent: 100,
+        storageLossPercent: 0,
+        source: "ASSUMPTION",
+        comment: "Recipe builder test ingredient"
+      },
+      update: {}
+    });
+  }
+}
+
 async function main() {
   await seedSettings();
   const imported = await seedMenu();
-  console.log(`Seed complete. Imported or updated ${imported} menu SKU rows. No demo recipe or purchase costs were created.`);
+  await seedRecipeBuilderTestData();
+  console.log(`Seed complete. Imported or updated ${imported} menu SKU rows and ensured recipe builder test SKU/ingredients.`);
 }
 
 main()

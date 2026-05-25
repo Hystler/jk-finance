@@ -3,8 +3,8 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { Edit3, Plus, Trash2 } from "lucide-react";
 import { Shell } from "@/pages/index";
-import { calculateRecipeItemCost } from "@/calculations/financial";
 import { loadModel } from "@/lib/model";
+import { calculateFoodCostPercent, calculateRecipeRowCost, calculateRecipeItemCostDetails } from "@/lib/recipe-cost";
 import { percent, rub } from "@/lib/format";
 import { statusClass } from "@/pages/menu";
 
@@ -32,12 +32,25 @@ export default function SkuDetail({ product, modelProduct, economics, ingredient
   const [packEditor, setPackEditor] = useState<any | null>(null);
   const [ingredientSearch, setIngredientSearch] = useState("");
   const [inlineIngredient, setInlineIngredient] = useState(false);
+  const [recipeError, setRecipeError] = useState("");
   const warnings = economics.warnings ?? [];
   const filteredIngredients = useMemo(() => {
     const q = ingredientSearch.toLowerCase().trim();
     if (!q) return ingredients;
     return ingredients.filter((item: any) => [item.name, item.category, item.supplier].some((v) => String(v ?? "").toLowerCase().includes(q)));
   }, [ingredientSearch, ingredients]);
+  const selectedIngredient = useMemo(() => ingredients.find((item: any) => item.id === recipeEditor?.ingredientId) ?? null, [ingredients, recipeEditor?.ingredientId]);
+  const recipePreview = useMemo(() => {
+    if (!recipeEditor) return null;
+    const ingredient = inlineIngredient ? recipeEditor.newIngredient : selectedIngredient;
+    return calculateRecipeRowCost({
+      ingredient,
+      quantity: recipeEditor.quantity,
+      unit: recipeEditor.unit,
+      wastePercent: recipeEditor.yieldLossPercent
+    });
+  }, [inlineIngredient, recipeEditor, selectedIngredient]);
+  const recipeFoodCost = calculateFoodCostPercent(economics.ingredientCost, economics.salePrice);
 
   const deleteSku = async () => {
     if (!confirm(`Удалить SKU "${product.name}"?`)) return;
@@ -55,7 +68,11 @@ export default function SkuDetail({ product, modelProduct, economics, ingredient
     window.location.reload();
   };
   const saveRecipe = async () => {
+    setRecipeError("");
     let ingredientId = recipeEditor.ingredientId;
+    if (!inlineIngredient && !ingredientId) return setRecipeError("Выберите ингредиент.");
+    if (Number(recipeEditor.quantity ?? 0) <= 0) return setRecipeError("Количество должно быть больше 0.");
+    if (Number(recipeEditor.yieldLossPercent ?? 0) < 0) return setRecipeError("Waste % не может быть меньше 0.");
     if (inlineIngredient) {
       const response = await fetch("/api/ingredients", {
         method: "POST",
@@ -63,7 +80,7 @@ export default function SkuDetail({ product, modelProduct, economics, ingredient
         body: JSON.stringify(recipeEditor.newIngredient)
       });
       const payload = await response.json();
-      if (!response.ok) return alert(payload.error ?? "Не удалось создать ингредиент");
+      if (!response.ok) return setRecipeError(payload.error ?? "Не удалось создать ингредиент");
       ingredientId = payload.ingredient.id;
     }
     const url = recipeEditor.id ? `/api/recipe-items/${recipeEditor.id}` : "/api/recipe-items";
@@ -72,7 +89,8 @@ export default function SkuDetail({ product, modelProduct, economics, ingredient
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ ...recipeEditor, productId: product.id, ingredientId })
     });
-    if (!response.ok) return alert("Не удалось сохранить рецептуру");
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) return setRecipeError(payload.error ?? "Не удалось сохранить рецептуру");
     window.location.reload();
   };
   const deleteRecipe = async (id: string) => {
@@ -142,38 +160,40 @@ export default function SkuDetail({ product, modelProduct, economics, ingredient
 
       <section className="band">
         <div className="sectionHead">
-          <h2>Рецептура</h2>
-          <button className="primary" onClick={() => setRecipeEditor({ ingredientId: ingredients[0]?.id ?? "", quantity: 0, unit: "g", yieldLossPercent: 0, comment: "", newIngredient: defaultIngredient() })}><Plus size={16} /> Добавить ингредиент</button>
+          <h2>Recipe / Состав и себестоимость</h2>
+          <button className="primary" onClick={() => startRecipeEditor({ ingredients, setRecipeEditor, setRecipeError, setInlineIngredient })}><Plus size={16} /> Add ingredient</button>
         </div>
         <div className="tableScroll">
           <table className="skuTable">
             <thead>
               <tr>
                 <th className="stickyCol">Ингредиент</th>
-                <th>Количество</th>
+                <th>Quantity</th>
                 <th>Unit</th>
                 <th>Purchase price</th>
-                <th>Purchase unit</th>
-                <th>Cost in portion</th>
+                <th>Waste %</th>
+                <th>Cost</th>
+                <th>Final cost</th>
                 <th>Comment</th>
                 <th className="stickyAction">Actions</th>
               </tr>
             </thead>
             <tbody>
               {modelProduct.recipes.map((item: any) => {
-                const totalCost = calculateRecipeItemCost(item);
+                const cost = calculateRecipeItemCostDetails(item);
                 return (
                   <tr key={item.id}>
                     <td className="stickyCol"><strong>{item.ingredientName}</strong></td>
                     <td>{item.quantity ?? item.netWeightGrams ?? item.grossWeightGrams ?? 0}</td>
                     <td>{item.unit ?? "g"}</td>
-                    <td>{rub(item.ingredient?.purchasePrice ?? item.unitPurchasePrice ?? 0)}</td>
-                    <td>{item.ingredient?.purchaseUnit ?? item.unitMeasure ?? "kg"}</td>
-                    <td><strong>{rub(totalCost)}</strong><div><span className="pill">{recipeCostMode(item)}</span></div></td>
+                    <td>{rub(item.ingredient?.purchasePrice ?? item.unitPurchasePrice ?? 0)} / {item.ingredient?.purchaseUnit ?? item.unitMeasure ?? "kg"}</td>
+                    <td>{item.yieldLossPercent ?? 0}%</td>
+                    <td>{rub(cost.costPerPortion)}</td>
+                    <td><strong>{rub(cost.finalIngredientCost)}</strong><div><span className="pill">{recipeCostMode(item)}</span></div></td>
                     <td>{item.comment || "—"}</td>
                     <td className="stickyAction">
                       <div className="iconActions">
-                        <button className="iconButton" onClick={() => setRecipeEditor({ ...item, ingredientId: item.ingredientId ?? "", newIngredient: defaultIngredient() })}><Edit3 size={15} /></button>
+                        <button className="iconButton" onClick={() => { setRecipeError(""); setInlineIngredient(false); setRecipeEditor({ ...item, ingredientId: item.ingredientId ?? "", newIngredient: defaultIngredient() }); }}><Edit3 size={15} /></button>
                         <button className="iconButton dangerText" onClick={() => deleteRecipe(item.id)}><Trash2 size={15} /></button>
                       </div>
                     </td>
@@ -185,10 +205,10 @@ export default function SkuDetail({ product, modelProduct, economics, ingredient
           </table>
         </div>
         <div className="summaryGrid recipeTotals">
-          <div><strong>{rub(economics.ingredientCost)}</strong><span>Total ingredient cost</span></div>
+          <div><strong>{rub(economics.ingredientCost)}</strong><span>Recipe cost</span></div>
+          <div><strong>{recipeFoodCost == null ? "—" : percent(recipeFoodCost)}</strong><span>Food cost</span></div>
+          <div><strong>{rub(economics.salePrice - economics.ingredientCost)}</strong><span>Margin after food cost</span></div>
           <div><strong>{rub(economics.packagingCost)}</strong><span>Packaging</span></div>
-          <div><strong>{rub(economics.grossProfit)}</strong><span>Gross profit</span></div>
-          <div><strong>{percent(economics.grossMarginPercent)}</strong><span>Gross margin</span></div>
         </div>
       </section>
 
@@ -252,11 +272,15 @@ export default function SkuDetail({ product, modelProduct, economics, ingredient
       )}
 
       {recipeEditor && (
-        <Editor title={recipeEditor.id ? "Редактировать рецептуру" : "Добавить ингредиент в SKU"} onClose={() => { setRecipeEditor(null); setInlineIngredient(false); }} onSave={saveRecipe}>
+        <Editor title={recipeEditor.id ? "Редактировать рецептуру" : "Добавить ингредиент в SKU"} onClose={() => { setRecipeEditor(null); setInlineIngredient(false); setRecipeError(""); }} onSave={saveRecipe}>
+          {recipeError && <div className="check critical wide">{recipeError}</div>}
           {!inlineIngredient ? (
             <>
               <label className="wide">Поиск ингредиента<input value={ingredientSearch} onChange={(e) => setIngredientSearch(e.target.value)} placeholder="говядина, сыр, булочка..." /></label>
-              <label className="wide">Ингредиент<select value={recipeEditor.ingredientId} onChange={(e) => setRecipeEditor({ ...recipeEditor, ingredientId: e.target.value })}>{filteredIngredients.map((item: any) => <option key={item.id} value={item.id}>{item.name} · {rub(item.purchasePrice)} / {item.purchaseUnit}</option>)}</select></label>
+              <label className="wide">Ингредиент<select value={recipeEditor.ingredientId} onChange={(e) => {
+                const ingredient = ingredients.find((item: any) => item.id === e.target.value);
+                setRecipeEditor({ ...recipeEditor, ingredientId: e.target.value, unit: defaultRecipeUnit(ingredient?.purchaseUnit) });
+              }}>{filteredIngredients.map((item: any) => <option key={item.id} value={item.id}>{item.name} — {rub(item.purchasePrice)} / {item.purchaseUnit}</option>)}</select></label>
               <button type="button" onClick={() => setInlineIngredient(true)}>Создать ингредиент</button>
             </>
           ) : (
@@ -270,7 +294,11 @@ export default function SkuDetail({ product, modelProduct, economics, ingredient
           )}
           <label>Количество<input type="number" min={0} step={1} value={recipeEditor.quantity ?? 0} onChange={(e) => setRecipeEditor({ ...recipeEditor, quantity: Number(e.target.value) })} /></label>
           <label>Единица<select value={recipeEditor.unit ?? "g"} onChange={(e) => setRecipeEditor({ ...recipeEditor, unit: e.target.value })}><option>g</option><option>kg</option><option>ml</option><option>liter</option><option>piece</option></select></label>
-          <label>Yield loss, %<input type="number" min={0} max={100} step={1} value={recipeEditor.yieldLossPercent ?? 0} onChange={(e) => setRecipeEditor({ ...recipeEditor, yieldLossPercent: Number(e.target.value) })} /></label>
+          <label>Waste %<input type="number" min={0} step={1} value={recipeEditor.yieldLossPercent ?? 0} onChange={(e) => setRecipeEditor({ ...recipeEditor, yieldLossPercent: Number(e.target.value) })} /></label>
+          <div className={recipePreview?.error ? "check critical wide" : "successPanel wide"}>
+            <strong>Расчёт строки</strong>
+            <p>{recipePreview?.error ? recipePreview.error : `Cost: ${rub(recipePreview?.costPerPortion ?? 0)} · Final cost: ${rub(recipePreview?.finalIngredientCost ?? 0)}`}</p>
+          </div>
           <label className="wide">Комментарий<textarea value={recipeEditor.comment ?? ""} onChange={(e) => setRecipeEditor({ ...recipeEditor, comment: e.target.value })} /></label>
         </Editor>
       )}
@@ -328,4 +356,24 @@ function defaultIngredient() {
 
 function recipeCostMode(item: any) {
   return item.source === "USER_PORTION_COST" || item.totalIngredientCost != null ? "manual" : "calculated";
+}
+
+function startRecipeEditor({ ingredients, setRecipeEditor, setRecipeError, setInlineIngredient }: any) {
+  const firstIngredient = ingredients[0];
+  setRecipeError("");
+  setInlineIngredient(false);
+  setRecipeEditor({
+    ingredientId: firstIngredient?.id ?? "",
+    quantity: 1,
+    unit: defaultRecipeUnit(firstIngredient?.purchaseUnit),
+    yieldLossPercent: 0,
+    comment: "",
+    newIngredient: defaultIngredient()
+  });
+}
+
+function defaultRecipeUnit(purchaseUnit?: string) {
+  if (purchaseUnit === "piece") return "piece";
+  if (purchaseUnit === "liter" || purchaseUnit === "ml") return "ml";
+  return "g";
 }

@@ -12,72 +12,32 @@ import type {
   TaxInputs
 } from "@/models/financial";
 import { formatRub } from "@/lib/format";
+import {
+  calculateIngredientCost as calculateIngredientBaseCost,
+  calculateRecipeItemCostDetails,
+  calculateSkuRecipeTotal
+} from "@/lib/recipe-cost";
 
 export const pct = (value?: number | null) => (Number.isFinite(value ?? NaN) ? Number(value) : 0);
 export const percentDecimal = (value?: number | null) => pct(value) / 100;
 export const money = (value?: number | null) => (Number.isFinite(value ?? NaN) ? Number(value) : 0);
 export const safeDiv = (a: number, b: number) => (b === 0 ? 0 : a / b);
-const clampYield = (value: number) => (value > 0 ? value : 1);
 
 export function ingredientCostPerBaseUnit(ingredient?: IngredientInput | null): number {
-  if (!ingredient) return 0;
-  const price = money(ingredient.purchasePrice);
-  const unit = String(ingredient.purchaseUnit ?? "kg").toLowerCase();
-  if (unit === "kg" || unit === "liter") return price / 1000;
-  if (unit === "g" || unit === "ml" || unit === "piece") return price;
-  return price;
+  return calculateIngredientBaseCost(ingredient);
 }
 
 export function calculateRecipeItemCost(item: RecipeInput): number {
-  if (Number.isFinite(item.totalIngredientCost ?? NaN)) return money(item.totalIngredientCost);
   if (Number.isFinite(item.costPerUnit ?? NaN)) return money(item.costPerUnit);
 
-  const ingredient = item.ingredient;
-  const quantity =
-    item.quantity ??
-    item.netWeightGrams ??
-    item.grossWeightGrams ??
-    null;
-
-  if (ingredient && Number.isFinite(quantity ?? NaN)) {
-    const edibleYield = ingredient.edibleYieldPercent == null ? 100 : pct(ingredient.edibleYieldPercent);
-    const storageLoss = ingredient.storageLossPercent == null ? 0 : pct(ingredient.storageLossPercent);
-    const recipeLoss = item.yieldLossPercent == null ? 0 : pct(item.yieldLossPercent);
-    const effectiveYield = clampYield((edibleYield / 100) * (1 - storageLoss / 100) * (1 - recipeLoss / 100));
-    const quantityInBaseUnit = convertQuantityToIngredientBaseUnit(money(quantity), item.unit, ingredient.purchaseUnit);
-    return (quantityInBaseUnit * ingredientCostPerBaseUnit(ingredient)) / effectiveYield;
+  if (item.ingredient) {
+    return calculateRecipeItemCostDetails(item).finalIngredientCost;
   }
 
   if (Number.isFinite(item.netWeightGrams ?? NaN) && Number.isFinite(item.unitPurchasePrice ?? NaN)) {
     return (Number(item.netWeightGrams) / 1000) * Number(item.unitPurchasePrice);
   }
   return 0;
-}
-
-function convertQuantityToIngredientBaseUnit(quantity: number, unit?: string | null, purchaseUnit?: string | null): number {
-  const sourceUnit = String(unit || defaultQuantityUnit(purchaseUnit)).toLowerCase();
-  const targetUnit = String(purchaseUnit || "kg").toLowerCase();
-  const source = unitInfo(sourceUnit);
-  const target = unitInfo(targetUnit);
-  if (!source || !target) return quantity;
-  if (source.group !== target.group) return 0;
-  return quantity * source.baseFactor;
-}
-
-function defaultQuantityUnit(purchaseUnit?: string | null) {
-  const unit = String(purchaseUnit || "kg").toLowerCase();
-  if (unit === "liter" || unit === "ml") return "ml";
-  if (unit === "piece") return "piece";
-  return "g";
-}
-
-function unitInfo(unit: string): { group: "mass" | "volume" | "piece"; baseFactor: number } | null {
-  if (unit === "kg") return { group: "mass", baseFactor: 1000 };
-  if (unit === "g") return { group: "mass", baseFactor: 1 };
-  if (unit === "liter") return { group: "volume", baseFactor: 1000 };
-  if (unit === "ml") return { group: "volume", baseFactor: 1 };
-  if (unit === "piece") return { group: "piece", baseFactor: 1 };
-  return null;
 }
 
 export function calculateMonthlyRevenue(store: StoreInputs): number {
@@ -93,7 +53,7 @@ export function calculateMonthlyItemsSold(store: StoreInputs): number {
 }
 
 export function calculateIngredientCost(product: ProductInput): number {
-  return (product.recipes ?? []).reduce((sum, item) => sum + calculateRecipeItemCost(item), 0);
+  return calculateSkuRecipeTotal(product);
 }
 
 export function calculatePackagingCost(product: ProductInput): number {
