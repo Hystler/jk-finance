@@ -7,6 +7,7 @@ import {
   importSimpleRecipes,
   isSimpleImportKind,
   normalizeSimpleImportKind,
+  type SimpleImportSummary,
   type SimpleImportDb
 } from "@/imports/simple";
 import { createEmptySimpleSummary, normalizeSimpleUnit, parseRequiredNumber } from "@/imports/simple";
@@ -29,6 +30,7 @@ const bool = (value: unknown, fallback = true) => {
   return ["true", "yes", "1", "да"].includes(raw);
 };
 const stableId = (prefix: string, value: string) => `${prefix}-${createHash("sha1").update(value).digest("hex").slice(0, 16)}`;
+type NormalizedSimpleKind = "menu_simple" | "ingredients_simple" | "recipes_simple";
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
@@ -36,8 +38,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const rows = Array.isArray(req.body.rows) ? req.body.rows : [];
 
   try {
-    if (isSimpleImportKind(kind)) {
-      const simpleKind = normalizeSimpleImportKind(kind);
+    if (isPrimarySimpleKind(kind) || isSimpleImportKind(kind)) {
+      const simpleKind = toSimpleKind(kind);
       const db = simpleImportDb();
       const summary =
         simpleKind === "menu_simple" ? await importSimpleMenu(rows, db) :
@@ -50,7 +52,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         summary.updatedIngredients +
         summary.addedRecipeRows +
         summary.updatedRecipeRows;
-      return res.json({ count, summary });
+      return res.json({ count, summary: responseSummary(simpleKind, summary) });
     }
 
     if (kind === "menu") {
@@ -133,7 +135,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             ? await prisma.product.findFirst({ where: { name: productName } })
             : null;
         if (!product) {
-          summary.errors.push({ row_number: rowNumber, type: "recipes", message: `SKU не найден: ${productName || productId || "empty"}`, raw_value: productName || productId });
+          summary.errors.push({ row_number: rowNumber, type: "recipes", field: productId ? "sku_id" : "sku_name", message: `SKU not found: ${productName || productId || "empty"}`, raw_value: productName || productId });
           continue;
         }
         const ingredient = ingredientId
@@ -142,24 +144,24 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             ? await prisma.ingredient.findUnique({ where: { name: ingredientName } })
             : null;
         if (!ingredient) {
-          summary.errors.push({ row_number: rowNumber, type: "recipes", message: `Ingredient не найден: ${ingredientName || ingredientId || "empty"}`, raw_value: ingredientName || ingredientId });
+          summary.errors.push({ row_number: rowNumber, type: "recipes", field: ingredientId ? "ingredient_id" : "ingredient_name", message: `Ingredient not found: ${ingredientName || ingredientId || "empty"}`, raw_value: ingredientName || ingredientId });
           continue;
         }
         if (quantity == null || quantity <= 0) {
-          summary.errors.push({ row_number: rowNumber, type: "recipes", message: "quantity_per_portion должен быть > 0.", raw_value: String(row.quantity_per_portion ?? row.quantity ?? "") });
+          summary.errors.push({ row_number: rowNumber, type: "recipes", field: "quantity", message: "quantity_per_portion must be > 0.", raw_value: String(row.quantity_per_portion ?? row.quantity ?? "") });
           continue;
         }
         if (!recipeUnit) {
-          summary.errors.push({ row_number: rowNumber, type: "recipes", message: "Unit должен быть одним из: kg, g, liter, ml, piece.", raw_value: text(row.unit) });
+          summary.errors.push({ row_number: rowNumber, type: "recipes", field: "unit", message: `Unsupported unit "${text(row.unit)}". Use kg, g, liter, ml, or piece.`, raw_value: text(row.unit) });
           continue;
         }
         if (wastePercent < 0) {
-          summary.errors.push({ row_number: rowNumber, type: "recipes", message: "waste_percent должен быть >= 0.", raw_value: String(row.waste_percent ?? row.yield_loss_percent ?? "") });
+          summary.errors.push({ row_number: rowNumber, type: "recipes", field: "waste_percent", message: "waste_percent must be >= 0.", raw_value: String(row.waste_percent ?? row.yield_loss_percent ?? "") });
           continue;
         }
         const compatibility = validateUnitCompatibility(ingredient.purchaseUnit, recipeUnit);
         if (!compatibility.ok) {
-          summary.errors.push({ row_number: rowNumber, type: "recipes", message: compatibility.message ?? "Несовместимые единицы.", raw_value: `${ingredient.purchaseUnit} -> ${recipeUnit}` });
+          summary.errors.push({ row_number: rowNumber, type: "recipes", field: "unit", message: compatibility.message ?? "Incompatible units.", raw_value: `${ingredient.purchaseUnit} -> ${recipeUnit}` });
           continue;
         }
 
@@ -186,9 +188,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         } else {
           await prisma.recipeItem.create({ data });
           summary.addedRecipeRows += 1;
+          summary.createdRecipeRows += 1;
         }
       }
-      return res.json({ count: summary.addedRecipeRows + summary.updatedRecipeRows, summary });
+      return res.json({ count: summary.addedRecipeRows + summary.updatedRecipeRows, summary: responseSummary("recipes_simple", summary) });
     }
 
     if (kind === "capex") {
@@ -273,5 +276,43 @@ function simpleImportDb(): SimpleImportDb {
       prisma.recipeItem.create({ data }),
     updateRecipeItem: (id, data) =>
       prisma.recipeItem.update({ where: { id }, data })
+  };
+}
+
+function isPrimarySimpleKind(kind: string) {
+  return ["menu", "ingredients", "recipes"].includes(kind);
+}
+
+function toSimpleKind(kind: string): NormalizedSimpleKind {
+  if (kind === "menu") return "menu_simple";
+  if (kind === "ingredients") return "ingredients_simple";
+  if (kind === "recipes") return "recipes_simple";
+  return normalizeSimpleImportKind(kind) as NormalizedSimpleKind;
+}
+
+function responseSummary(kind: NormalizedSimpleKind, summary: SimpleImportSummary) {
+  const errorCount = summary.errors.length;
+  if (kind === "menu_simple") {
+    return {
+      ...summary,
+      createdCount: summary.createdSku,
+      updatedCount: summary.updatedSku,
+      errorCount
+    };
+  }
+  if (kind === "ingredients_simple") {
+    return {
+      ...summary,
+      createdCount: summary.createdIngredients,
+      updatedCount: summary.updatedIngredients,
+      errorCount
+    };
+  }
+  return {
+    ...summary,
+    createdRecipeRows: summary.createdRecipeRows || summary.addedRecipeRows,
+    createdCount: summary.createdRecipeRows || summary.addedRecipeRows,
+    updatedCount: summary.updatedRecipeRows,
+    errorCount
   };
 }

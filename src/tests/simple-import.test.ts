@@ -1,6 +1,8 @@
 import * as XLSX from "xlsx";
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { calculateProductEconomics, calculateRecipeItemCost, calculateStoreModel } from "@/calculations/financial";
+import { SIMPLE_EXPORT_COLUMNS, toSimpleIngredientRows, toSimpleMenuRows, toSimpleRecipeRows } from "@/exports/simple";
 import { buildModelWorkbook } from "@/exports/workbook";
 import {
   calculateSimplePortionCost,
@@ -119,7 +121,7 @@ describe("simple import", () => {
     const db = new MemoryImportDb();
     const summary = await importSimpleRecipes([{ sku_name: "Нет SKU", ingredient_name: "Говядина", quantity: 120, unit: "g", purchase_price: 850, purchase_unit: "kg" }], db);
 
-    expect(summary.errors[0]).toMatchObject({ row_number: 2, type: "recipes", message: "SKU не найден." });
+    expect(summary.errors[0]).toMatchObject({ row_number: 2, type: "recipes", field: "sku_name", message: "SKU not found." });
   });
 
   it("Missing ingredient without price returns row error", async () => {
@@ -127,7 +129,7 @@ describe("simple import", () => {
     await importSimpleMenu([{ sku_name: "Бургер Рокки", category: "Бургеры", sale_price: 450 }], db);
     const summary = await importSimpleRecipes([{ sku_name: "Бургер Рокки", ingredient_name: "Говядина", quantity: 120, unit: "g" }], db);
 
-    expect(summary.errors[0]).toMatchObject({ row_number: 2, type: "recipes", message: "Ингредиент не найден и нет цены закупки." });
+    expect(summary.errors[0]).toMatchObject({ row_number: 2, type: "recipes", field: "ingredient_name", message: "Ingredient not found and no purchase price provided." });
   });
 
   it("Incompatible unit returns row error", async () => {
@@ -135,7 +137,18 @@ describe("simple import", () => {
     const summary = await importSimpleRecipes([{ sku_name: "Бургер Рокки", ingredient_name: "Говядина", quantity: 1, unit: "piece" }], db);
 
     expect(summary.errors[0]).toMatchObject({ row_number: 2, type: "recipes" });
-    expect(summary.errors[0].message).toContain("Несовместимые единицы");
+    expect(summary.errors[0].message).toContain("Incompatible units");
+  });
+
+  it("recipes import can auto-create ingredient from price/unit", async () => {
+    const db = new MemoryImportDb();
+    await importSimpleMenu([{ sku_name: "Бургер Рокки", category: "Бургеры", sale_price: 450 }], db);
+    const summary = await importSimpleRecipes([{ sku_name: "Бургер Рокки", ingredient_name: "Булочка", quantity: 1, unit: "piece", purchase_price: 25, purchase_unit: "piece" }], db);
+
+    expect(summary.createdIngredientsOnTheFly).toBe(1);
+    expect(summary.createdRecipeRows).toBe(1);
+    expect(db.ingredients[0]).toMatchObject({ name: "Булочка", purchasePrice: 25, purchaseUnit: "piece" });
+    expect(db.recipes[0]).toMatchObject({ ingredientName: "Булочка", source: "IMPORTED_SIMPLE" });
   });
 
   it("SKU ingredient cost updates after recipe import", async () => {
@@ -190,6 +203,97 @@ describe("simple import", () => {
 
     const workbook = XLSX.read(buffer);
     expect(workbook.SheetNames).toContain("Simple Recipes");
+  });
+
+  it("menu import summary returns created/updated/errors", async () => {
+    const db = new MemoryImportDb();
+    await importSimpleMenu([{ sku_name: "Бургер Рокки", category: "Бургеры", sale_price: 450 }], db);
+    const summary = await importSimpleMenu([
+      { sku_name: "Бургер Рокки", category: "Бургеры", sale_price: 490 },
+      { sku_name: "", category: "Бургеры", sale_price: 100 }
+    ], db);
+
+    expect(summary.createdSku).toBe(0);
+    expect(summary.updatedSku).toBe(1);
+    expect(summary.errors).toHaveLength(1);
+    expect(summary.errors[0]).toMatchObject({ field: "sku_name" });
+  });
+
+  it("ingredients import summary returns created/updated/errors", async () => {
+    const db = new MemoryImportDb();
+    await importSimpleIngredients([{ ingredient_name: "Говядина", purchase_price: 800, purchase_unit: "kg" }], db);
+    const summary = await importSimpleIngredients([
+      { ingredient_name: "Говядина", purchase_price: 850, purchase_unit: "kg" },
+      { ingredient_name: "Булочка", purchase_price: 25, purchase_unit: "piece" },
+      { ingredient_name: "Соус", purchase_price: 10, purchase_unit: "pcs" }
+    ], db);
+
+    expect(summary.createdIngredients).toBe(1);
+    expect(summary.updatedIngredients).toBe(1);
+    expect(summary.errors).toHaveLength(1);
+    expect(summary.errors[0]).toMatchObject({ field: "purchase_unit" });
+  });
+
+  it("recipes import summary returns created/updated/errors", async () => {
+    const db = await dbWithBurgerAndBeef();
+    await importSimpleRecipes([{ sku_name: "Бургер Рокки", ingredient_name: "Говядина", quantity: 120, unit: "g" }], db);
+    const summary = await importSimpleRecipes([
+      { sku_name: "Бургер Рокки", ingredient_name: "Говядина", quantity: 130, unit: "g" },
+      { sku_name: "Бургер Рокки", ingredient_name: "Булочка", quantity: 1, unit: "piece", purchase_price: 25, purchase_unit: "piece" },
+      { sku_name: "Бургер Рокки", ingredient_name: "Соус", quantity: 1, unit: "pcs", purchase_price: 10, purchase_unit: "piece" }
+    ], db);
+
+    expect(summary.createdRecipeRows).toBe(1);
+    expect(summary.updatedRecipeRows).toBe(1);
+    expect(summary.errors).toHaveLength(1);
+    expect(summary.errors[0]).toMatchObject({ field: "unit" });
+  });
+
+  it("export menu returns simple schema", () => {
+    const rows = toSimpleMenuRows([{ name: "Бургер Рокки", category: "Бургеры", salePrice: 450, description: "Описание", id: "sku-1" }]);
+
+    expect(Object.keys(rows[0])).toEqual(SIMPLE_EXPORT_COLUMNS.menu);
+    expect(rows[0]).toEqual({ sku_name: "Бургер Рокки", category: "Бургеры", sale_price: 450, description: "Описание" });
+  });
+
+  it("export ingredients returns simple schema", () => {
+    const rows = toSimpleIngredientRows([{ name: "Говядина", category: "Мясо", purchasePrice: 850, purchaseUnit: "kg", supplier: "A" }]);
+
+    expect(Object.keys(rows[0])).toEqual(SIMPLE_EXPORT_COLUMNS.ingredients);
+    expect(rows[0]).toEqual({ ingredient_name: "Говядина", category: "Мясо", purchase_price: 850, purchase_unit: "kg" });
+  });
+
+  it("export recipes returns simple schema", () => {
+    const rows = toSimpleRecipeRows([{ productName: "Бургер Рокки", ingredientName: "Говядина", quantity: 120, unit: "g", purchasePrice: 850, purchaseUnit: "kg", source: "IMPORTED_SIMPLE" }]);
+
+    expect(Object.keys(rows[0])).toEqual(SIMPLE_EXPORT_COLUMNS.recipes);
+    expect(rows[0]).toEqual({ sku_name: "Бургер Рокки", ingredient_name: "Говядина", quantity: 120, unit: "g", purchase_price: 850, purchase_unit: "kg", cost_in_portion: "" });
+  });
+
+  it("/import page shows only Menu / Ingredients / Recipes import cards", () => {
+    const source = readFileSync("src/pages/import.tsx", "utf8");
+
+    expect(source).toContain('title: "Menu"');
+    expect(source).toContain('title: "Ingredients"');
+    expect(source).toContain('title: "Recipes"');
+    expect(source).not.toContain("advancedImports");
+    expect(source).not.toContain("Advanced import");
+  });
+
+  it("/import page does not show CAPEX/OPEX/tax import", () => {
+    const source = readFileSync("src/pages/import.tsx", "utf8");
+
+    expect(source).not.toContain("CAPEX");
+    expect(source).not.toContain("OPEX");
+    expect(source).not.toContain("Tax assumptions");
+    expect(source).not.toContain("Export full model");
+  });
+
+  it("import summary does not show 0 rows after successful import", () => {
+    const source = readFileSync("src/pages/import.tsx", "utf8");
+
+    expect(source).not.toContain("Импортировано строк");
+    expect(source).not.toContain("0 rows");
   });
 });
 

@@ -5,6 +5,7 @@ export type SimpleUnit = (typeof SIMPLE_UNITS)[number];
 export type ImportRowIssue = {
   row_number: number;
   type: "menu" | "ingredients" | "recipes";
+  field: string;
   message: string;
   raw_value: string;
 };
@@ -15,8 +16,10 @@ export type SimpleImportSummary = {
   createdSku: number;
   updatedSku: number;
   createdIngredients: number;
+  createdIngredientsOnTheFly: number;
   updatedIngredients: number;
   addedRecipeRows: number;
+  createdRecipeRows: number;
   updatedRecipeRows: number;
   errors: ImportRowIssue[];
   warnings: ImportWarning[];
@@ -107,8 +110,10 @@ export const createEmptySimpleSummary = (): SimpleImportSummary => ({
   createdSku: 0,
   updatedSku: 0,
   createdIngredients: 0,
+  createdIngredientsOnTheFly: 0,
   updatedIngredients: 0,
   addedRecipeRows: 0,
+  createdRecipeRows: 0,
   updatedRecipeRows: 0,
   errors: [],
   warnings: []
@@ -149,7 +154,7 @@ export function calculateSimplePortionCost(input: {
   const quantityUnit = unitInfo(input.unit);
   const purchaseUnit = unitInfo(input.purchaseUnit);
   if (quantityUnit.group !== purchaseUnit.group) {
-    return { error: `Несовместимые единицы: ${input.purchaseUnit} и ${input.unit}.` };
+    return { error: `Incompatible units: ${input.purchaseUnit} -> ${input.unit}.` };
   }
   const pricePerBaseUnit = input.purchasePrice / purchaseUnit.baseFactor;
   const quantityInBaseUnit = input.quantity * quantityUnit.baseFactor;
@@ -167,15 +172,15 @@ export async function importSimpleIngredients(rows: Array<Record<string, unknown
     const purchaseUnit = normalizeSimpleUnit(row.purchase_unit ?? row.purchaseUnit);
 
     if (!name) {
-      addError(summary, rowNumber, "ingredients", "ingredient_name обязателен.", row.ingredient_name ?? row.name);
+      addError(summary, rowNumber, "ingredients", "ingredient_name", "ingredient_name is required.", row.ingredient_name ?? row.name);
       continue;
     }
     if (purchasePrice == null || purchasePrice < 0) {
-      addError(summary, rowNumber, "ingredients", "purchase_price обязателен и должен быть >= 0.", row.purchase_price ?? row.purchasePrice);
+      addError(summary, rowNumber, "ingredients", "purchase_price", "purchase_price is required and must be >= 0.", row.purchase_price ?? row.purchasePrice);
       continue;
     }
     if (!purchaseUnit) {
-      addError(summary, rowNumber, "ingredients", "purchase_unit должен быть одним из: kg, g, liter, ml, piece.", row.purchase_unit ?? row.purchaseUnit);
+      addError(summary, rowNumber, "ingredients", "purchase_unit", `Unsupported unit "${text(row.purchase_unit ?? row.purchaseUnit)}". Use kg, g, liter, ml, or piece.`, row.purchase_unit ?? row.purchaseUnit);
       continue;
     }
 
@@ -214,15 +219,15 @@ export async function importSimpleMenu(rows: Array<Record<string, unknown>>, db:
     const salePrice = parseRequiredNumber(row.sale_price ?? row.salePrice ?? row.price);
 
     if (!name) {
-      addError(summary, rowNumber, "menu", "sku_name обязателен.", row.sku_name ?? row.name);
+      addError(summary, rowNumber, "menu", "sku_name", "sku_name is required.", row.sku_name ?? row.name);
       continue;
     }
     if (!category) {
-      addError(summary, rowNumber, "menu", "category обязателен.", row.category);
+      addError(summary, rowNumber, "menu", "category", "category is required.", row.category);
       continue;
     }
     if (salePrice == null || salePrice <= 0) {
-      addError(summary, rowNumber, "menu", "sale_price обязателен и должен быть > 0.", row.sale_price ?? row.salePrice ?? row.price);
+      addError(summary, rowNumber, "menu", "sale_price", "sale_price is required and must be > 0.", row.sale_price ?? row.salePrice ?? row.price);
       continue;
     }
 
@@ -265,48 +270,48 @@ export async function importSimpleRecipes(rows: Array<Record<string, unknown>>, 
     const manualCost = parseOptionalNumber(row.cost_in_portion ?? row.costInPortion);
 
     if (!skuName) {
-      addError(summary, rowNumber, "recipes", "sku_name обязателен.", row.sku_name ?? row.product_name);
+      addError(summary, rowNumber, "recipes", "sku_name", "sku_name is required.", row.sku_name ?? row.product_name);
       continue;
     }
     if (!ingredientName) {
-      addError(summary, rowNumber, "recipes", "ingredient_name обязателен.", row.ingredient_name ?? row.ingredientName);
+      addError(summary, rowNumber, "recipes", "ingredient_name", "ingredient_name is required.", row.ingredient_name ?? row.ingredientName);
       continue;
     }
     if (quantity == null || quantity <= 0) {
-      addError(summary, rowNumber, "recipes", "quantity обязателен и должен быть > 0.", row.quantity);
+      addError(summary, rowNumber, "recipes", "quantity", "quantity is required and must be > 0.", row.quantity);
       continue;
     }
     if (!unit) {
-      addError(summary, rowNumber, "recipes", "unit должен быть одним из: kg, g, liter, ml, piece.", row.unit);
+      addError(summary, rowNumber, "recipes", "unit", `Unsupported unit "${text(row.unit)}". Use kg, g, liter, ml, or piece.`, row.unit);
       continue;
     }
     if (manualCost != null && manualCost < 0) {
-      addError(summary, rowNumber, "recipes", "cost_in_portion должен быть >= 0.", row.cost_in_portion ?? row.costInPortion);
+      addError(summary, rowNumber, "recipes", "cost_in_portion", "cost_in_portion must be >= 0.", row.cost_in_portion ?? row.costInPortion);
       continue;
     }
     if (purchasePriceFromRow != null && purchasePriceFromRow < 0) {
-      addError(summary, rowNumber, "recipes", "purchase_price должен быть >= 0.", row.purchase_price ?? row.purchasePrice);
+      addError(summary, rowNumber, "recipes", "purchase_price", "purchase_price must be >= 0.", row.purchase_price ?? row.purchasePrice);
       continue;
     }
     if (text(purchaseUnitRaw) && !purchaseUnitFromRow) {
-      addError(summary, rowNumber, "recipes", "purchase_unit должен быть одним из: kg, g, liter, ml, piece.", purchaseUnitRaw);
+      addError(summary, rowNumber, "recipes", "purchase_unit", `Unsupported unit "${text(purchaseUnitRaw)}". Use kg, g, liter, ml, or piece.`, purchaseUnitRaw);
       continue;
     }
 
     const product = await db.findProductByName(skuName);
     if (!product) {
-      addError(summary, rowNumber, "recipes", "SKU не найден.", skuName);
+      addError(summary, rowNumber, "recipes", "sku_name", "SKU not found.", skuName);
       continue;
     }
 
     let ingredient = await db.findIngredientByName(ingredientName);
     if (!ingredient) {
       if (purchasePriceFromRow == null) {
-        addError(summary, rowNumber, "recipes", "Ингредиент не найден и нет цены закупки.", ingredientName);
+        addError(summary, rowNumber, "recipes", "ingredient_name", "Ingredient not found and no purchase price provided.", ingredientName);
         continue;
       }
       if (!purchaseUnitFromRow) {
-        addError(summary, rowNumber, "recipes", "Ингредиент не найден и нет единицы закупки.", ingredientName);
+        addError(summary, rowNumber, "recipes", "purchase_unit", "Ingredient not found and no purchase unit provided.", ingredientName);
         continue;
       }
       ingredient = await db.createIngredient({
@@ -321,6 +326,7 @@ export async function importSimpleRecipes(rows: Array<Record<string, unknown>>, 
         source: "IMPORTED_SIMPLE"
       });
       summary.createdIngredients += 1;
+      summary.createdIngredientsOnTheFly += 1;
     } else if (purchasePriceFromRow != null || purchaseUnitFromRow) {
       const nextPurchasePrice = purchasePriceFromRow ?? ingredient.purchasePrice;
       const nextPurchaseUnit = purchaseUnitFromRow ?? normalizeSimpleUnit(ingredient.purchaseUnit) ?? "kg";
@@ -345,12 +351,12 @@ export async function importSimpleRecipes(rows: Array<Record<string, unknown>>, 
 
     if (costInPortion == null) {
       if (purchasePrice == null || !purchaseUnit) {
-        addError(summary, rowNumber, "recipes", "Для расчёта нужна закупочная цена и единица.", ingredientName);
+        addError(summary, rowNumber, "recipes", "purchase_price", "Purchase price and purchase unit are required for calculation.", ingredientName);
         continue;
       }
       const calculated = calculateSimplePortionCost({ quantity, unit, purchasePrice, purchaseUnit });
       if ("error" in calculated) {
-        addError(summary, rowNumber, "recipes", calculated.error, `${purchaseUnit} -> ${unit}`);
+        addError(summary, rowNumber, "recipes", "unit", calculated.error, `${purchaseUnit} -> ${unit}`);
         continue;
       }
       costInPortion = calculated.cost;
@@ -381,6 +387,7 @@ export async function importSimpleRecipes(rows: Array<Record<string, unknown>>, 
     } else {
       await db.createRecipeItem(recipeData);
       summary.addedRecipeRows += 1;
+      summary.createdRecipeRows += 1;
     }
   }
 
@@ -403,10 +410,11 @@ function unitInfo(unit: SimpleUnit): { group: UnitGroup; baseFactor: number } {
   return { group: "piece", baseFactor: 1 };
 }
 
-function addError(summary: SimpleImportSummary, rowNumber: number, type: ImportRowIssue["type"], message: string, rawValue: unknown) {
+function addError(summary: SimpleImportSummary, rowNumber: number, type: ImportRowIssue["type"], field: string, message: string, rawValue: unknown) {
   summary.errors.push({
     row_number: rowNumber,
     type,
+    field,
     message,
     raw_value: typeof rawValue === "string" ? rawValue : JSON.stringify(rawValue ?? "")
   });

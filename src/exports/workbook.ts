@@ -1,6 +1,7 @@
 import * as XLSX from "xlsx";
 import type { FranchiseFinancialModel } from "@/calculations/franchise";
 import type { CheckResult, ProductEconomics, StoreModelResult } from "@/models/financial";
+import { toSimpleIngredientRows, toSimpleMenuRows, toSimpleRecipeRows } from "@/exports/simple";
 
 export function buildModelWorkbook(input: {
   economics: ProductEconomics[];
@@ -62,55 +63,6 @@ function appendJsonSheet(workbook: XLSX.WorkBook, rows: Array<Record<string, unk
   const sheet = XLSX.utils.json_to_sheet(rows);
   formatNumericCells(sheet);
   XLSX.utils.book_append_sheet(workbook, sheet, name);
-}
-
-function toSimpleMenuRows(products: Array<Record<string, unknown>>) {
-  return products.map((row) => ({
-    sku_name: pick(row, "name", "sku_name"),
-    category: pick(row, "category"),
-    sale_price: pick(row, "salePrice", "sale_price", "price"),
-    description: pick(row, "description"),
-    image_url: pick(row, "imageUrl", "image_url"),
-    product_url: pick(row, "productUrl", "product_url"),
-    is_active: pick(row, "isActive", "is_active") ?? true
-  }));
-}
-
-function toSimpleIngredientRows(ingredients: Array<Record<string, unknown>>) {
-  return ingredients.map((row) => ({
-    ingredient_name: pick(row, "name", "ingredientName", "ingredient_name"),
-    category: pick(row, "category"),
-    supplier: pick(row, "supplier"),
-    purchase_price: pick(row, "purchasePrice", "purchase_price"),
-    purchase_unit: pick(row, "purchaseUnit", "purchase_unit"),
-    comment: pick(row, "comment")
-  }));
-}
-
-function toSimpleRecipeRows(recipes: Array<Record<string, unknown>>) {
-  return recipes.map((row) => {
-    const source = String(pick(row, "source") ?? "");
-    const manualCost = source === "USER_PORTION_COST"
-      ? pick(row, "costInPortion", "cost_in_portion", "final_ingredient_cost", "totalIngredientCost", "total_ingredient_cost")
-      : "";
-    return {
-      sku_name: pick(row, "sku_name", "productName", "product_name"),
-      ingredient_name: pick(row, "ingredient_name", "ingredientName"),
-      quantity: pick(row, "quantity_per_portion", "quantity"),
-      unit: pick(row, "unit"),
-      purchase_price: pick(row, "purchasePrice", "purchase_price", "unitPurchasePrice", "unit_purchase_price"),
-      purchase_unit: pick(row, "purchaseUnit", "purchase_unit", "unitMeasure", "unit_measure"),
-      cost_in_portion: manualCost ?? "",
-      comment: pick(row, "comment")
-    };
-  });
-}
-
-function pick(row: Record<string, unknown>, ...keys: string[]) {
-  for (const key of keys) {
-    if (row[key] !== undefined && row[key] !== null) return row[key];
-  }
-  return "";
 }
 
 function formatNumericCells(sheet: XLSX.WorkSheet) {

@@ -3,60 +3,83 @@ import { Download, Upload } from "lucide-react";
 import * as XLSX from "xlsx";
 import { Shell } from "@/pages/index";
 
+type ImportKind = "menu" | "ingredients" | "recipes";
+
+type ImportIssue = {
+  row_number: number;
+  field: string;
+  message: string;
+  raw_value?: string;
+};
+
 type ImportSummary = {
-  createdSku: number;
-  updatedSku: number;
-  createdIngredients: number;
-  updatedIngredients: number;
-  addedRecipeRows: number;
+  createdSku?: number;
+  updatedSku?: number;
+  createdIngredients?: number;
+  createdIngredientsOnTheFly?: number;
+  updatedIngredients?: number;
+  addedRecipeRows?: number;
+  createdRecipeRows?: number;
   updatedRecipeRows?: number;
-  errors: Array<{ row_number: number; type: string; message: string; raw_value: string }>;
-  warnings: Array<{ row_number: number; type: string; message: string; raw_value: string }>;
+  errors?: ImportIssue[];
 };
 
-const emptySummary: ImportSummary = {
-  createdSku: 0,
-  updatedSku: 0,
-  createdIngredients: 0,
-  updatedIngredients: 0,
-  addedRecipeRows: 0,
-  updatedRecipeRows: 0,
-  errors: [],
-  warnings: []
+type ResultState = {
+  kind: ImportKind;
+  title: string;
+  summary?: ImportSummary;
+  message?: string;
+  failed?: boolean;
 };
 
-const simpleImports = [
-  { kind: "menu_simple", template: "menu_simple_template.csv", title: "1. Импортируйте меню", upload: "Загрузить menu_simple_template" },
-  { kind: "ingredients_simple", template: "ingredients_simple_template.csv", title: "2. Импортируйте ингредиенты", upload: "Загрузить ingredients_simple_template" },
-  { kind: "recipes_simple", template: "recipes_simple_template.csv", title: "3. Импортируйте рецептуры", upload: "Загрузить recipes_simple_template" }
-] as const;
+const importCards: Array<{
+  kind: ImportKind;
+  title: string;
+  template: string;
+  description: string;
+  helper: string;
+}> = [
+  {
+    kind: "menu",
+    title: "Menu",
+    template: "menu_simple_template.csv",
+    description: "Позиции меню: название, категория, цена, описание",
+    helper: "Загрузите позиции меню"
+  },
+  {
+    kind: "ingredients",
+    title: "Ingredients",
+    template: "ingredients_simple_template.csv",
+    description: "Справочник ингредиентов: название, цена закупки, единица",
+    helper: "Загрузите справочник ингредиентов с закупочными ценами"
+  },
+  {
+    kind: "recipes",
+    title: "Recipes",
+    template: "recipes_simple_template.csv",
+    description: "Рецептуры: позиция меню собирается из заранее добавленных ингредиентов",
+    helper: "Свяжите позиции меню с ингредиентами и количеством в порции"
+  }
+];
 
-const advancedImports = [
-  ["menu", "menu_template.csv", "Advanced menu"],
-  ["ingredients", "ingredients_template.csv", "Advanced ingredients"],
-  ["recipes", "recipes_template.csv", "Advanced recipes"],
-  ["capex", "capex_template.csv", "CAPEX"],
-  ["opex", "opex_template.csv", "OPEX"],
-  ["tax", "tax_settings_template.csv", "Tax assumptions"]
-] as const;
-
-const exportLinks = [
-  ["Export full model", "/api/export/full", "Ready"],
-  ["Export investor report", "", "Prepared"],
-  ["Export SKU economics", "", "Prepared"],
-  ["Export audit report", "", "Prepared"]
+const exportCards = [
+  { kind: "menu", title: "Export Menu", description: "Меню в формате sku_name, category, sale_price, description" },
+  { kind: "ingredients", title: "Export Ingredients", description: "Ингредиенты в формате ingredient_name, category, purchase_price, purchase_unit" },
+  { kind: "recipes", title: "Export Recipes", description: "Рецептуры в формате sku_name, ingredient_name, quantity, unit, purchase price" }
 ] as const;
 
 export default function ImportPage() {
-  const [result, setResult] = useState<{ title: string; summary?: ImportSummary; message?: string } | null>(null);
-  const [isUploading, setIsUploading] = useState(false);
+  const [result, setResult] = useState<ResultState | null>(null);
+  const [uploadingKind, setUploadingKind] = useState<ImportKind | null>(null);
 
-  async function upload(kind: string, title: string, file?: File) {
+  async function upload(kind: ImportKind, title: string, file?: File) {
     if (!file) return;
-    setIsUploading(true);
+    setUploadingKind(kind);
     try {
       const workbook = XLSX.read(await file.arrayBuffer(), { type: "array" });
-      const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(workbook.Sheets[workbook.SheetNames[0]], { defval: "" });
+      const sheet = workbook.Sheets[workbook.SheetNames[0]];
+      if (!sheet) throw new Error("Файл пустой или не содержит таблицу.");
+      const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: "" });
       const res = await fetch(`/api/import/${kind}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -64,18 +87,14 @@ export default function ImportPage() {
       });
       const body = await res.json();
       if (!res.ok) {
-        setResult({ title, message: body.error ?? "Import failed" });
+        setResult({ kind, title, failed: true, message: body.error ?? "Import failed" });
         return;
       }
-      setResult({
-        title,
-        summary: body.summary ? { ...emptySummary, ...body.summary } : undefined,
-        message: body.summary ? undefined : `Импортировано строк: ${body.count ?? rows.length}`
-      });
+      setResult({ kind, title, summary: body.summary ?? {} });
     } catch (error) {
-      setResult({ title, message: error instanceof Error ? error.message : "Import failed" });
+      setResult({ kind, title, failed: true, message: error instanceof Error ? error.message : "Import failed" });
     } finally {
-      setIsUploading(false);
+      setUploadingKind(null);
     }
   }
 
@@ -83,26 +102,35 @@ export default function ImportPage() {
     <Shell>
       <div className="pageHeader">
         <div>
-          <h1>Import CSV/XLSX</h1>
-          <p>Операционный импорт теперь начинается с простых шаблонов: сначала меню, затем ингредиенты с закупочными ценами, затем рецептуры по названиям SKU и ингредиентов. Product ID и технические поля остаются только в Advanced import.</p>
+          <h1>Import / Export</h1>
+          <p>Сначала импортируйте меню, затем ингредиенты, затем рецептуры. Пользовательский workflow работает по названиям SKU и ингредиентов, без product_id и технических полей.</p>
         </div>
       </div>
 
       <section className="band">
         <div className="sectionHead">
-          <h2>Simple import — recommended</h2>
-          <span>Для ежедневного заполнения меню, закупок и рецептур</span>
+          <h2>Import</h2>
+          <span>Сначала импортируйте меню, затем ингредиенты, затем рецептуры</span>
         </div>
         <div className="importGrid">
-          {simpleImports.map((item) => (
-            <div className="importBox" key={item.kind}>
-              <h3>{item.title}</h3>
-              <p className="muted">CSV/XLSX с понятными колонками без product_id и технических параметров.</p>
+          {importCards.map((card) => (
+            <div className="importBox" key={card.kind}>
+              <h3>{card.title}</h3>
+              <p>{card.description}</p>
+              <p className="muted">{card.helper}</p>
               <div className="actions">
-                <a className="button" href={`/templates/${item.template}`}><Download size={16} /> Скачать {item.template}</a>
+                <a className="button" href={`/templates/${card.template}`}><Download size={16} /> Скачать шаблон</a>
                 <label className="button primary">
-                  <Upload size={16} /> {item.upload}
-                  <input hidden type="file" accept=".csv,.xlsx,.xls" onChange={(event) => upload(item.kind, item.title, event.target.files?.[0])} />
+                  <Upload size={16} /> {uploadingKind === card.kind ? "Загрузка..." : "Загрузить файл"}
+                  <input
+                    hidden
+                    type="file"
+                    accept=".csv,.xlsx,.xls"
+                    onChange={(event) => {
+                      upload(card.kind, card.title, event.target.files?.[0]);
+                      event.currentTarget.value = "";
+                    }}
+                  />
                 </label>
               </div>
             </div>
@@ -110,93 +138,88 @@ export default function ImportPage() {
         </div>
       </section>
 
-      {result && (
-        <section className="band">
-          <div className="sectionHead">
-            <h2>Import summary</h2>
-            <span>{result.title}</span>
-          </div>
-          {result.message && <p><strong>{result.message}</strong></p>}
-          {result.summary && <Summary summary={result.summary} />}
-        </section>
-      )}
+      {result && <ImportResult result={result} />}
 
       <section className="band">
         <div className="sectionHead">
-          <h2>Advanced import — for technical users</h2>
-          <span>Старые шаблоны с id, tax, yield/loss и техническими полями</span>
+          <h2>Export</h2>
+          <span>Выгрузка в том же простом формате, который можно отредактировать и загрузить обратно</span>
         </div>
-        <div className="tableScroll">
-          <table>
-            <tbody>
-              {advancedImports.map(([kind, template, label]) => (
-                <tr key={kind}>
-                  <td>{label}</td>
-                  <td><a className="subtleLink" href={`/templates/${template}`}>Скачать {template}</a></td>
-                  <td>
-                    <label className="button">
-                      <Upload size={16} /> Загрузить
-                      <input hidden type="file" accept=".csv,.xlsx,.xls" onChange={(event) => upload(kind, label, event.target.files?.[0])} />
-                    </label>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div className="importGrid">
+          {exportCards.map((card) => (
+            <div className="importBox" key={card.kind}>
+              <h3>{card.title}</h3>
+              <p>{card.description}</p>
+              <div className="actions">
+                <a className="button primary" href={`/api/export/${card.kind}`}><Download size={16} /> CSV</a>
+                <a className="button" href={`/api/export/${card.kind}?format=xlsx`}><Download size={16} /> XLSX</a>
+              </div>
+            </div>
+          ))}
         </div>
       </section>
-
-      <section className="band">
-        <div className="sectionHead"><h2>Export structure</h2><span>Full XLSX includes Simple Menu, Simple Ingredients and Simple Recipes sheets.</span></div>
-        <table>
-          <tbody>
-            {exportLinks.map(([label, href, status]) => (
-              <tr key={label}>
-                <td>{href ? <a className="subtleLink" href={href}>{label}</a> : label}</td>
-                <td><span className={status === "Ready" ? "status good" : "pill"}>{status}</span></td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </section>
-
-      {isUploading && <p className="muted">Импорт выполняется...</p>}
     </Shell>
   );
 }
 
-function Summary({ summary }: { summary: ImportSummary }) {
-  const issues = [...summary.errors, ...summary.warnings];
+function ImportResult({ result }: { result: ResultState }) {
+  const summary = result.summary ?? {};
+  const errors = summary.errors ?? [];
   return (
-    <>
-      <div className="summaryGrid">
-        <SummaryMetric label="создано SKU" value={summary.createdSku} />
-        <SummaryMetric label="обновлено SKU" value={summary.updatedSku} />
-        <SummaryMetric label="создано ингредиентов" value={summary.createdIngredients} />
-        <SummaryMetric label="обновлено ингредиентов" value={summary.updatedIngredients} />
-        <SummaryMetric label="добавлено recipe rows" value={summary.addedRecipeRows} />
-        <SummaryMetric label="обновлено recipe rows" value={summary.updatedRecipeRows ?? 0} />
-        <SummaryMetric label="ошибок" value={summary.errors.length} />
-        <SummaryMetric label="warning" value={summary.warnings.length} />
+    <section className={`band ${result.failed || errors.length ? "warningPanel" : "successPanelSoft"}`}>
+      <div className="sectionHead">
+        <h2>Last import result</h2>
+        <span>{result.title}</span>
       </div>
-      {issues.length > 0 && (
+      {result.message ? <p><strong>{result.message}</strong></p> : <SummaryMetrics kind={result.kind} summary={summary} />}
+      {errors.length > 0 && (
         <div className="tableScroll">
           <table>
-            <thead><tr><th>row_number</th><th>type</th><th>message</th><th>raw_value</th></tr></thead>
+            <thead><tr><th>Row number</th><th>Field</th><th>Message</th></tr></thead>
             <tbody>
-              {issues.map((issue, index) => (
-                <tr key={`${issue.row_number}-${issue.type}-${index}`}>
-                  <td>{issue.row_number}</td>
-                  <td>{issue.type}</td>
-                  <td>{issue.message}</td>
-                  <td>{issue.raw_value}</td>
+              {errors.map((error, index) => (
+                <tr key={`${error.row_number}-${error.field}-${index}`}>
+                  <td>{error.row_number}</td>
+                  <td>{error.field}</td>
+                  <td>{error.message}</td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
       )}
-    </>
+    </section>
+  );
+}
+
+function SummaryMetrics({ kind, summary }: { kind: ImportKind; summary: ImportSummary }) {
+  if (kind === "menu") {
+    return (
+      <div className="summaryGrid">
+        <SummaryMetric label="Created SKU" value={summary.createdSku ?? 0} />
+        <SummaryMetric label="Updated SKU" value={summary.updatedSku ?? 0} />
+        <SummaryMetric label="Errors" value={summary.errors?.length ?? 0} />
+      </div>
+    );
+  }
+
+  if (kind === "ingredients") {
+    return (
+      <div className="summaryGrid">
+        <SummaryMetric label="Created ingredients" value={summary.createdIngredients ?? 0} />
+        <SummaryMetric label="Updated ingredients" value={summary.updatedIngredients ?? 0} />
+        <SummaryMetric label="Errors" value={summary.errors?.length ?? 0} />
+      </div>
+    );
+  }
+
+  return (
+    <div className="summaryGrid">
+      <SummaryMetric label="Created recipe rows" value={summary.createdRecipeRows ?? summary.addedRecipeRows ?? 0} />
+      <SummaryMetric label="Updated recipe rows" value={summary.updatedRecipeRows ?? 0} />
+      <SummaryMetric label="Created ingredients" value={summary.createdIngredientsOnTheFly ?? 0} />
+      <SummaryMetric label="Errors" value={summary.errors?.length ?? 0} />
+    </div>
   );
 }
 

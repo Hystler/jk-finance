@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { useState } from "react";
-import { BarChart3, Database, Download, FileSearch, FileUp, Gauge, GitBranch, Landmark, Menu, Table2, TrendingUp, X } from "lucide-react";
+import { BarChart3, Database, FileSearch, FileUp, Gauge, GitBranch, Landmark, Menu, Table2, TrendingUp, X } from "lucide-react";
 
 const navGroups = [
   {
@@ -116,7 +116,6 @@ export function Shell({ children }: { children: React.ReactNode }) {
           </div>
           <div className="navActions">
             <Link href="/import" onClick={() => setMenuOpen(false)}><FileUp size={15} /> Import</Link>
-            <a href="/api/export/full" onClick={() => setMenuOpen(false)}><Download size={15} /> Export XLSX</a>
           </div>
         </nav>
         {activeGroup.links.length > 1 && (
