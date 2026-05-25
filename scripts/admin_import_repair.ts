@@ -74,32 +74,66 @@ async function repairNames() {
       id: product.id,
       name: product.name,
       category: product.category,
+      description: product.description,
+      sourceNote: product.sourceNote,
       nextName: repairImportedName(product.name),
-      nextCategory: repairImportedName(product.category)
+      nextCategory: repairImportedName(product.category),
+      nextDescription: product.description ? repairImportedName(product.description) : null,
+      nextSourceNote: product.sourceNote ? repairImportedName(product.sourceNote) : null
     }))
-    .filter((item) => item.name !== item.nextName || item.category !== item.nextCategory);
+    .filter((item) =>
+      item.name !== item.nextName ||
+      item.category !== item.nextCategory ||
+      item.description !== item.nextDescription ||
+      item.sourceNote !== item.nextSourceNote
+    );
   const ingredientPlan = ingredients
     .map((ingredient) => ({
       id: ingredient.id,
       name: ingredient.name,
       category: ingredient.category,
+      supplier: ingredient.supplier,
+      comment: ingredient.comment,
       nextName: repairImportedName(ingredient.name),
-      nextCategory: ingredient.category ? repairImportedName(ingredient.category) : null
+      nextCategory: ingredient.category ? repairImportedName(ingredient.category) : null,
+      nextSupplier: ingredient.supplier ? repairImportedName(ingredient.supplier) : null,
+      nextComment: ingredient.comment ? repairImportedName(ingredient.comment) : null
     }))
-    .filter((item) => item.name !== item.nextName || item.category !== item.nextCategory);
+    .filter((item) =>
+      item.name !== item.nextName ||
+      item.category !== item.nextCategory ||
+      item.supplier !== item.nextSupplier ||
+      item.comment !== item.nextComment
+    );
 
   const skipped: Array<{ id: string; reason: string }> = [];
   if (apply) {
     for (const item of productPlan) {
       try {
-        await prisma.product.update({ where: { id: item.id }, data: { name: item.nextName, category: item.nextCategory } });
+        await prisma.product.update({
+          where: { id: item.id },
+          data: {
+            name: item.nextName,
+            category: item.nextCategory,
+            description: item.nextDescription,
+            sourceNote: item.nextSourceNote
+          }
+        });
       } catch (error) {
         skipped.push({ id: item.id, reason: error instanceof Error ? error.message : "Product repair failed" });
       }
     }
     for (const item of ingredientPlan) {
       try {
-        await prisma.ingredient.update({ where: { id: item.id }, data: { name: item.nextName, category: item.nextCategory } });
+        await prisma.ingredient.update({
+          where: { id: item.id },
+          data: {
+            name: item.nextName,
+            category: item.nextCategory,
+            supplier: item.nextSupplier,
+            comment: item.nextComment
+          }
+        });
         await prisma.recipeItem.updateMany({ where: { ingredientId: item.id }, data: { ingredientName: item.nextName } });
       } catch (error) {
         skipped.push({ id: item.id, reason: error instanceof Error ? error.message : "Ingredient repair failed" });
